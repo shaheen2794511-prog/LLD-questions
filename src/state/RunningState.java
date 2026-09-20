@@ -3,22 +3,30 @@ public class RunningState
 
     @Override
     public void start(Race race) {
+
         throw new IllegalStateException(
                 "Race already started");
     }
 
     @Override
     public void tick(Race race) {
-        // Allow horses to run
+
+        race.incrementTick();
+
+        for (Horse horse : race.getHorses()) {
+            horse.advance();
+        }
+
+        race.notifyObservers();
+
+        if (race.hasFinished()) {
+            race.setState(new FinishedState());
+        }
     }
 
     @Override
     public void finish(Race race) {
-        race.setState(new FinishedState());
-    }
 
-    @Override
-    public void cancel(Race race) {
-        race.setState(new CancelledState());
+        race.setState(new FinishedState());
     }
 }
