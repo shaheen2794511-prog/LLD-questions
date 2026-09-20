@@ -1,0 +1,29 @@
+public class LeaderboardObserver
+        implements RaceObserver {
+
+    private final RaceResultRepository repository;
+
+    public LeaderboardObserver(
+            RaceResultRepository repository) {
+
+        this.repository = repository;
+    }
+
+    @Override
+    public void onRaceUpdate(Race race) {
+
+        if (race.hasFinished()) {
+
+            List<Horse> winners =
+                    race.getWinnerStrategy()
+                            .findWinners(race);
+
+            RaceResult result =
+                    new RaceResult(
+                            winners,
+                            race.getTickCount());
+
+            repository.save(result);
+        }
+    }
+}
