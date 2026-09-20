@@ -1,34 +1,62 @@
-import java.util.*;
 
-public class Race {
+public class RaceBuilder {
 
-    private final List<Horse> horses;
-    private final double finishLine;
+    private List<Horse> horses =
+            new ArrayList<>();
 
-    private Race(Builder builder) {
-        this.horses = builder.horses;
-        this.finishLine = builder.finishLine;
+    private double finishLine = 50;
+
+    private WinnerStrategy winnerStrategy =
+            new HighestPositionWinnerStrategy();
+
+    private List<RaceObserver> observers =
+            new ArrayList<>();
+
+    public RaceBuilder addHorse(Horse horse) {
+
+        horses.add(horse);
+
+        return this;
     }
 
-    public static class Builder {
+    public RaceBuilder finishLine(
+            double finishLine) {
 
-        private List<Horse> horses =
-                new ArrayList<>();
+        this.finishLine = finishLine;
 
-        private double finishLine;
+        return this;
+    }
 
-        public Builder addHorse(Horse horse) {
-            horses.add(horse);
-            return this;
+    public RaceBuilder winnerStrategy(
+            WinnerStrategy strategy) {
+
+        this.winnerStrategy = strategy;
+
+        return this;
+    }
+
+    public RaceBuilder addObserver(
+            RaceObserver observer) {
+
+        observers.add(observer);
+
+        return this;
+    }
+
+    public Race build() {
+
+        Race race =
+                new Race(
+                        horses,
+                        finishLine,
+                        winnerStrategy);
+
+        for (RaceObserver observer :
+                observers) {
+
+            race.addObserver(observer);
         }
 
-        public Builder finishLine(double distance) {
-            this.finishLine = distance;
-            return this;
-        }
-
-        public Race build() {
-            return new Race(this);
-        }
+        return race;
     }
 }
