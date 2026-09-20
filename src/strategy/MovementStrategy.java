@@ -1,4 +1,4 @@
 public interface MovementStrategy {
 
-    double calculateMovement(Horse horse);
+    double calculateStep();
 }
