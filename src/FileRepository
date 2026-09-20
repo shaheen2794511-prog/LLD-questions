@@ -1,6 +1,0 @@
-public interface RaceResultRepository {
-
-    void save(RaceResult result);
-
-    List<RaceResult> findTopResults(int limit);
-}
