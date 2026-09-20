@@ -1,0 +1,16 @@
+public class PhotoFinishWinnerStrategy
+        implements WinnerStrategy {
+
+    @Override
+    public List<Horse> findWinners(Race race) {
+
+        // Apply photo-finish rules
+
+        return race.getHorses()
+                .stream()
+                .filter(h ->
+                        h.getPosition()
+                                >= race.getFinishLine())
+                .toList();
+    }
+}
