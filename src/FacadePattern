@@ -1,0 +1,54 @@
+public class HorseRacingFacade {
+
+    private final RaceResultRepository repository;
+
+    public HorseRacingFacade(
+            RaceResultRepository repository) {
+
+        this.repository = repository;
+    }
+
+    public void startRace(Race race) {
+
+        race.start();
+
+        while (!race.hasFinished()) {
+
+            race.tick();
+        }
+
+        List<Horse> winners =
+                race.getWinnerStrategy()
+                        .findWinners(race);
+
+        RaceResult result =
+                new RaceResult(
+                        winners,
+                        race.getTickCount());
+
+        repository.save(result);
+
+        announceWinner(winners, race);
+    }
+
+    private void announceWinner(
+            List<Horse> winners,
+            Race race) {
+
+        System.out.println(
+                "\nRace finished in "
+                + race.getTickCount()
+                + " ticks!");
+
+        System.out.print("Winner: ");
+
+        for (Horse horse : winners) {
+
+            System.out.print(
+                    horse.getName()
+                    + " (" +
+                    horse.getPosition()
+                    + " units) ");
+        }
+    }
+}
