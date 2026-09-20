@@ -1,0 +1,20 @@
+public class FileRaceResultRepository
+        implements RaceResultRepository {
+
+    @Override
+    public void save(RaceResult result) {
+
+        // Write result to file
+    }
+
+    @Override
+    public List<RaceResult> findTopResults(
+            int limit) {
+
+        // Read file
+        // Sort by tick count
+        // Return top results
+
+        return new ArrayList<>();
+    }
+}
