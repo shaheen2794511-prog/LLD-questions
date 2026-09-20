@@ -18,10 +18,3 @@ public class DefaultHorseFactory
                 new RandomMovementStrategy());
     }
 }
-HorseFactory factory = new DefaultHorseFactory();
-
-Horse horse1 =
-    factory.createHorse("Daisy", 2.5);
-
-Horse horse2 =
-    factory.createHorse("Thunder", 3.1);
