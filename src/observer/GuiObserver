@@ -1,0 +1,9 @@
+public class GuiRaceObserver
+        implements RaceObserver {
+
+    @Override
+    public void onRaceUpdate(Race race) {
+
+        // Update GUI progress bars
+    }
+}
