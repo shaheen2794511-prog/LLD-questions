@@ -1,0 +1,24 @@
+public class HighestPositionWinnerStrategy
+        implements WinnerStrategy {
+
+    @Override
+    public List<Horse> findWinners(Race race) {
+
+        double maxPosition =
+                race.getHorses()
+                        .stream()
+                        .mapToDouble(
+                                Horse::getPosition)
+                        .max()
+                        .orElse(0);
+
+        return race.getHorses()
+                .stream()
+                .filter(h ->
+                        Math.abs(
+                                h.getPosition()
+                                - maxPosition
+                        ) < 0.0001)
+                .toList();
+    }
+}
