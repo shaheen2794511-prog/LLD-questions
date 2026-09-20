@@ -3,12 +3,16 @@ import java.util.Random;
 public class RandomMovementStrategy
         implements MovementStrategy {
 
+    private final double speed;
     private final Random random = new Random();
 
-    @Override
-    public double calculateMovement(Horse horse) {
+    public RandomMovementStrategy(double speed) {
+        this.speed = speed;
+    }
 
-        return random.nextDouble()
-                * horse.getBaseSpeed();
+    @Override
+    public double calculateStep() {
+
+        return random.nextDouble() * speed;
     }
 }
