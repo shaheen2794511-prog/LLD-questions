@@ -1,52 +1,44 @@
+import java.util.*;
+
 public class Race {
 
     private final List<Horse> horses;
     private final double finishLine;
 
     private int tickCount;
+
     private RaceState state;
+
+    private final List<RaceObserver> observers;
+
+    private final WinnerStrategy winnerStrategy;
 
     public Race(
             List<Horse> horses,
-            double finishLine) {
+            double finishLine,
+            WinnerStrategy winnerStrategy) {
 
         this.horses = horses;
         this.finishLine = finishLine;
+        this.winnerStrategy = winnerStrategy;
+
         this.tickCount = 0;
+
         this.state = new NotStartedState();
+
+        this.observers = new ArrayList<>();
     }
 
     public void start() {
         state.start(this);
     }
 
-    public void runTick() {
-
-        if (!(state instanceof RunningState)) {
-            throw new IllegalStateException(
-                    "Race is not running");
-        }
-
-        for (Horse horse : horses) {
-            horse.run();
-        }
-
-        tickCount++;
-    }
-
-    public boolean hasWinner() {
-
-        return horses.stream()
-                .anyMatch(h ->
-                    h.getPosition() >= finishLine);
+    public void tick() {
+        state.tick(this);
     }
 
     public void finish() {
         state.finish(this);
-    }
-
-    public void cancel() {
-        state.cancel(this);
     }
 
     public List<Horse> getHorses() {
@@ -61,7 +53,33 @@ public class Race {
         return tickCount;
     }
 
+    public void incrementTick() {
+        tickCount++;
+    }
+
     public void setState(RaceState state) {
         this.state = state;
+    }
+
+    public void addObserver(RaceObserver observer) {
+        observers.add(observer);
+    }
+
+    public void notifyObservers() {
+
+        for (RaceObserver observer : observers) {
+            observer.onRaceUpdate(this);
+        }
+    }
+
+    public WinnerStrategy getWinnerStrategy() {
+        return winnerStrategy;
+    }
+
+    public boolean hasFinished() {
+
+        return horses.stream()
+                .anyMatch(h ->
+                        h.getPosition() >= finishLine);
     }
 }
