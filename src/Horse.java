@@ -1,26 +1,23 @@
 public class Horse {
 
     private final String name;
-    private final double baseSpeed;
     private double position;
 
     private MovementStrategy movementStrategy;
 
     public Horse(
             String name,
-            double baseSpeed,
             MovementStrategy movementStrategy) {
 
         this.name = name;
-        this.baseSpeed = baseSpeed;
         this.movementStrategy = movementStrategy;
         this.position = 0;
     }
 
-    public void run() {
+    public void advance() {
 
         double distance =
-                movementStrategy.calculateMovement(this);
+                movementStrategy.calculateStep();
 
         position += distance;
     }
@@ -29,11 +26,17 @@ public class Horse {
         return name;
     }
 
-    public double getBaseSpeed() {
-        return baseSpeed;
-    }
-
     public double getPosition() {
         return position;
+    }
+
+    public void reset() {
+        position = 0;
+    }
+
+    public void setMovementStrategy(
+            MovementStrategy movementStrategy) {
+
+        this.movementStrategy = movementStrategy;
     }
 }
