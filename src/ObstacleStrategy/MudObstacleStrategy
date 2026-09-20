@@ -1,0 +1,11 @@
+public class MudObstacleStrategy
+        implements ObstacleStrategy {
+
+    @Override
+    public double modifyMovement(
+            Horse horse,
+            double movement) {
+
+        return movement * 0.5;
+    }
+}
