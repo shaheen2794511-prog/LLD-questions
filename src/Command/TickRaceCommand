@@ -1,0 +1,14 @@
+public class TickRaceCommand
+        implements RaceCommand {
+
+    private final Race race;
+
+    public TickRaceCommand(Race race) {
+        this.race = race;
+    }
+
+    @Override
+    public void execute() {
+        race.tick();
+    }
+}
