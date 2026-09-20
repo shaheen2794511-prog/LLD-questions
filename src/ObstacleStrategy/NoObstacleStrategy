@@ -1,0 +1,11 @@
+public class NoObstacleStrategy
+        implements ObstacleStrategy {
+
+    @Override
+    public double modifyMovement(
+            Horse horse,
+            double movement) {
+
+        return movement;
+    }
+}
