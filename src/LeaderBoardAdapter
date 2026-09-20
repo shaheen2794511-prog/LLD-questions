@@ -1,0 +1,31 @@
+public class LeaderboardAdapter
+        implements RaceResultRepository {
+
+    private final ExternalLeaderboard leaderboard;
+
+    public LeaderboardAdapter(
+            ExternalLeaderboard leaderboard) {
+
+        this.leaderboard = leaderboard;
+    }
+
+    @Override
+    public void save(RaceResult result) {
+
+        // Convert our model to external model
+
+        leaderboard.addRaceResult(
+                result.getWinnerName(),
+                result.getTicks());
+    }
+
+    @Override
+    public List<RaceResult> findTopResults(
+            int limit) {
+
+        // Convert external result
+        // to our RaceResult
+
+        return new ArrayList<>();
+    }
+}
