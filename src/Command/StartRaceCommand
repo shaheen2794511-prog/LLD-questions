@@ -1,0 +1,14 @@
+public class StartRaceCommand
+        implements RaceCommand {
+
+    private final Race race;
+
+    public StartRaceCommand(Race race) {
+        this.race = race;
+    }
+
+    @Override
+    public void execute() {
+        race.start();
+    }
+}
