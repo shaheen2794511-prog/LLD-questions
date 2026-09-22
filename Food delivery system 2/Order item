@@ -1,0 +1,22 @@
+public class OrderItem {
+
+    private final FoodItem foodItem;
+    private final int quantity;
+
+    public OrderItem(FoodItem foodItem, int quantity) {
+        this.foodItem = foodItem;
+        this.quantity = quantity;
+    }
+
+    public double getPrice() {
+        return foodItem.getPrice() * quantity;
+    }
+
+    public FoodItem getFoodItem() {
+        return foodItem;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+}
