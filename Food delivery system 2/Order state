@@ -1,0 +1,14 @@
+public interface OrderState {
+
+    void confirm(Order order);
+
+    void startPreparing(Order order);
+
+    void readyForPickup(Order order);
+
+    void pickup(Order order);
+
+    void deliver(Order order);
+
+    void cancel(Order order);
+}
