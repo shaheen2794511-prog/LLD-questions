@@ -1,0 +1,39 @@
+import java.util.*;
+
+public class Restaurant {
+
+    private final String restaurantId;
+    private final String name;
+    private final String address;
+
+    private final Map<String, FoodItem> menu = new HashMap<>();
+
+    public Restaurant(
+            String restaurantId,
+            String name,
+            String address) {
+
+        this.restaurantId = restaurantId;
+        this.name = name;
+        this.address = address;
+    }
+
+    public void addFoodItem(FoodItem item) {
+        menu.put(item.getItemId(), item);
+    }
+
+    public FoodItem getFoodItem(String itemId) {
+        return menu.get(itemId);
+    }
+
+    public boolean isItemAvailable(String itemId) {
+
+        FoodItem item = menu.get(itemId);
+
+        return item != null && item.isAvailable();
+    }
+
+    public String getName() {
+        return name;
+    }
+}
