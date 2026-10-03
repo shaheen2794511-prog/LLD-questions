@@ -1,0 +1,110 @@
+import java.util.ArrayList;
+import java.util.List;
+
+// 1. Observer Interface
+interface Observer {
+
+    void update(String message);
+}
+
+
+// 2. Concrete Observer
+class User implements Observer {
+
+    private String name;
+
+    public User(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public void update(String message) {
+        System.out.println(name + " received: " + message);
+    }
+}
+
+
+// 3. Subject Interface
+interface Subject {
+
+    void subscribe(Observer observer);
+
+    void unsubscribe(Observer observer);
+
+    void notifyObservers();
+}
+
+
+// 4. Concrete Subject
+class YouTubeChannel implements Subject {
+
+    private List<Observer> subscribers = new ArrayList<>();
+
+    private String latestVideo;
+
+
+    @Override
+    public void subscribe(Observer observer) {
+        subscribers.add(observer);
+    }
+
+
+    @Override
+    public void unsubscribe(Observer observer) {
+        subscribers.remove(observer);
+    }
+
+
+    public void uploadVideo(String videoName) {
+
+        this.latestVideo = videoName;
+
+        System.out.println("\nNew video uploaded: " + videoName);
+
+        notifyObservers();
+    }
+
+
+    @Override
+    public void notifyObservers() {
+
+        for (Observer observer : subscribers) {
+            observer.update(latestVideo);
+        }
+    }
+}
+
+
+// 5. Main Class
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Create Subject
+        YouTubeChannel channel = new YouTubeChannel();
+
+
+        // Create Observers
+        User user1 = new User("Rahul");
+        User user2 = new User("Priya");
+        User user3 = new User("Aman");
+
+
+        // Subscribe users
+        channel.subscribe(user1);
+        channel.subscribe(user2);
+        channel.subscribe(user3);
+
+
+        // Upload video
+        channel.uploadVideo("Java Design Patterns");
+
+
+        // Remove one subscriber
+        channel.unsubscribe(user2);
+
+
+        // Upload another video
+        channel.uploadVideo("System Design Basics");
+    }
+}
