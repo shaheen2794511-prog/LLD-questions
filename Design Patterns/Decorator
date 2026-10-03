@@ -1,0 +1,78 @@
+// 1. Component
+interface Coffee {
+    double cost();
+}
+
+
+// 2. Concrete Component
+class SimpleCoffee implements Coffee {
+
+    @Override
+    public double cost() {
+        return 50;
+    }
+}
+
+
+// 3. Abstract Decorator
+abstract class CoffeeDecorator implements Coffee {
+
+    protected Coffee coffee;
+
+    public CoffeeDecorator(Coffee coffee) {
+        this.coffee = coffee;
+    }
+}
+
+
+// 4. Concrete Decorator - Milk
+class MilkDecorator extends CoffeeDecorator {
+
+    public MilkDecorator(Coffee coffee) {
+        super(coffee);
+    }
+
+    @Override
+    public double cost() {
+        return coffee.cost() + 10;
+    }
+}
+
+
+// 5. Concrete Decorator - Sugar
+class SugarDecorator extends CoffeeDecorator {
+
+    public SugarDecorator(Coffee coffee) {
+        super(coffee);
+    }
+
+    @Override
+    public double cost() {
+        return coffee.cost() + 5;
+    }
+}
+
+
+// 6. Main Class
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Basic coffee
+        Coffee coffee = new SimpleCoffee();
+
+        System.out.println("Simple Coffee: ₹" + coffee.cost());
+
+
+        // Add Milk
+        coffee = new MilkDecorator(coffee);
+
+        System.out.println("Coffee + Milk: ₹" + coffee.cost());
+
+
+        // Add Sugar
+        coffee = new SugarDecorator(coffee);
+
+        System.out.println("Coffee + Milk + Sugar: ₹" + coffee.cost());
+    }
+}
