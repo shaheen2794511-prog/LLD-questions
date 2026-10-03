@@ -1,0 +1,164 @@
+// 1. State Interface
+interface OrderState {
+
+    void next(Order order);
+
+    void cancel(Order order);
+
+    void printStatus();
+}
+
+
+// 2. Pending State
+class PendingState implements OrderState {
+
+    @Override
+    public void next(Order order) {
+
+        System.out.println("Order is now SHIPPED");
+
+        order.setState(new ShippedState());
+    }
+
+    @Override
+    public void cancel(Order order) {
+
+        System.out.println("Order is CANCELLED");
+
+        order.setState(new CancelledState());
+    }
+
+    @Override
+    public void printStatus() {
+
+        System.out.println("Order Status: PENDING");
+    }
+}
+
+
+// 3. Shipped State
+class ShippedState implements OrderState {
+
+    @Override
+    public void next(Order order) {
+
+        System.out.println("Order is now DELIVERED");
+
+        order.setState(new DeliveredState());
+    }
+
+    @Override
+    public void cancel(Order order) {
+
+        System.out.println("Cannot cancel. Order has already been shipped.");
+    }
+
+    @Override
+    public void printStatus() {
+
+        System.out.println("Order Status: SHIPPED");
+    }
+}
+
+
+// 4. Delivered State
+class DeliveredState implements OrderState {
+
+    @Override
+    public void next(Order order) {
+
+        System.out.println("Order is already delivered.");
+    }
+
+    @Override
+    public void cancel(Order order) {
+
+        System.out.println("Cannot cancel a delivered order.");
+    }
+
+    @Override
+    public void printStatus() {
+
+        System.out.println("Order Status: DELIVERED");
+    }
+}
+
+
+// 5. Cancelled State
+class CancelledState implements OrderState {
+
+    @Override
+    public void next(Order order) {
+
+        System.out.println("Cancelled order cannot move to another state.");
+    }
+
+    @Override
+    public void cancel(Order order) {
+
+        System.out.println("Order is already cancelled.");
+    }
+
+    @Override
+    public void printStatus() {
+
+        System.out.println("Order Status: CANCELLED");
+    }
+}
+
+
+// 6. Context
+class Order {
+
+    private OrderState state;
+
+    public Order() {
+
+        // Initial state
+        state = new PendingState();
+    }
+
+    public void setState(OrderState state) {
+
+        this.state = state;
+    }
+
+    public void next() {
+
+        state.next(this);
+    }
+
+    public void cancel() {
+
+        state.cancel(this);
+    }
+
+    public void printStatus() {
+
+        state.printStatus();
+    }
+}
+
+
+// 7. Main Class
+public class Main {
+
+    public static void main(String[] args) {
+
+        Order order = new Order();
+
+        order.printStatus();
+
+        order.next();
+
+        order.printStatus();
+
+        order.next();
+
+        order.printStatus();
+
+        order.next();
+
+        order.cancel();
+    }
+}
