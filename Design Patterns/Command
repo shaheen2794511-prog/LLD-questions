@@ -1,0 +1,95 @@
+// 1. Command Interface
+interface Command {
+
+    void execute();
+}
+
+
+// 2. Receiver
+class TV {
+
+    public void turnOn() {
+        System.out.println("TV is ON");
+    }
+
+    public void turnOff() {
+        System.out.println("TV is OFF");
+    }
+}
+
+
+// 3. Concrete Command - Turn ON
+class TurnOnCommand implements Command {
+
+    private TV tv;
+
+    public TurnOnCommand(TV tv) {
+        this.tv = tv;
+    }
+
+    @Override
+    public void execute() {
+        tv.turnOn();
+    }
+}
+
+
+// 4. Concrete Command - Turn OFF
+class TurnOffCommand implements Command {
+
+    private TV tv;
+
+    public TurnOffCommand(TV tv) {
+        this.tv = tv;
+    }
+
+    @Override
+    public void execute() {
+        tv.turnOff();
+    }
+}
+
+
+// 5. Invoker
+class RemoteControl {
+
+    private Command command;
+
+    public void setCommand(Command command) {
+        this.command = command;
+    }
+
+    public void pressButton() {
+        command.execute();
+    }
+}
+
+
+// 6. Main Class
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Receiver
+        TV tv = new TV();
+
+
+        // Commands
+        Command turnOn = new TurnOnCommand(tv);
+        Command turnOff = new TurnOffCommand(tv);
+
+
+        // Invoker
+        RemoteControl remote = new RemoteControl();
+
+
+        // Press ON
+        remote.setCommand(turnOn);
+        remote.pressButton();
+
+
+        // Press OFF
+        remote.setCommand(turnOff);
+        remote.pressButton();
+    }
+}
