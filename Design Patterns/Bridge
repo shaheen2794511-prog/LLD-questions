@@ -1,0 +1,119 @@
+// 1. Implementation
+interface Device {
+
+    void turnOn();
+
+    void turnOff();
+
+    void setVolume(int volume);
+}
+
+
+// 2. Concrete Implementation
+class TV implements Device {
+
+    @Override
+    public void turnOn() {
+        System.out.println("TV is ON");
+    }
+
+    @Override
+    public void turnOff() {
+        System.out.println("TV is OFF");
+    }
+
+    @Override
+    public void setVolume(int volume) {
+        System.out.println("TV volume set to " + volume);
+    }
+}
+
+
+// 3. Another Concrete Implementation
+class Radio implements Device {
+
+    @Override
+    public void turnOn() {
+        System.out.println("Radio is ON");
+    }
+
+    @Override
+    public void turnOff() {
+        System.out.println("Radio is OFF");
+    }
+
+    @Override
+    public void setVolume(int volume) {
+        System.out.println("Radio volume set to " + volume);
+    }
+}
+
+
+// 4. Abstraction
+abstract class Remote {
+
+    protected Device device;
+
+    public Remote(Device device) {
+        this.device = device;
+    }
+
+    public void turnOn() {
+        device.turnOn();
+    }
+
+    public void turnOff() {
+        device.turnOff();
+    }
+
+    public void setVolume(int volume) {
+        device.setVolume(volume);
+    }
+}
+
+
+// 5. Refined Abstraction
+class BasicRemote extends Remote {
+
+    public BasicRemote(Device device) {
+        super(device);
+    }
+
+    public void mute() {
+        device.setVolume(0);
+    }
+}
+
+
+// 6. Main Class
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Remote + TV
+        Device tv = new TV();
+
+        Remote tvRemote = new BasicRemote(tv);
+
+        tvRemote.turnOn();
+        tvRemote.setVolume(20);
+
+        BasicRemote basicTVRemote = new BasicRemote(tv);
+        basicTVRemote.mute();
+
+        tvRemote.turnOff();
+
+
+        System.out.println();
+
+
+        // Remote + Radio
+        Device radio = new Radio();
+
+        Remote radioRemote = new BasicRemote(radio);
+
+        radioRemote.turnOn();
+        radioRemote.setVolume(30);
+        radioRemote.turnOff();
+    }
+}
