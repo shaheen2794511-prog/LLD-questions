@@ -1,0 +1,19 @@
+class Singleton {
+
+    // 1. Create a static variable
+    private static Singleton instance;
+
+    // 2. Private constructor
+    private Singleton() {
+    }
+
+    // 3. Public method to get the object
+    public static Singleton getInstance() {
+
+        if (instance == null) {
+            instance = new Singleton();
+        }
+
+        return instance;
+    }
+}
