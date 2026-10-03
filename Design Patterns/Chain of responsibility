@@ -1,0 +1,97 @@
+// 1. Handler
+abstract class LeaveApprover {
+
+    protected LeaveApprover nextApprover;
+
+    // Set next handler
+    public void setNextApprover(LeaveApprover nextApprover) {
+        this.nextApprover = nextApprover;
+    }
+
+    // Handle request
+    public abstract void approveLeave(int days);
+}
+
+
+// 2. Manager
+class Manager extends LeaveApprover {
+
+    @Override
+    public void approveLeave(int days) {
+
+        if (days <= 2) {
+
+            System.out.println(
+                "Manager approved " + days + " days leave"
+            );
+
+        } else if (nextApprover != null) {
+
+            nextApprover.approveLeave(days);
+        }
+    }
+}
+
+
+// 3. Director
+class Director extends LeaveApprover {
+
+    @Override
+    public void approveLeave(int days) {
+
+        if (days <= 5) {
+
+            System.out.println(
+                "Director approved " + days + " days leave"
+            );
+
+        } else if (nextApprover != null) {
+
+            nextApprover.approveLeave(days);
+        }
+    }
+}
+
+
+// 4. CEO
+class CEO extends LeaveApprover {
+
+    @Override
+    public void approveLeave(int days) {
+
+        System.out.println(
+            "CEO approved " + days + " days leave"
+        );
+    }
+}
+
+
+// 5. Main
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Create handlers
+        LeaveApprover manager = new Manager();
+        LeaveApprover director = new Director();
+        LeaveApprover ceo = new CEO();
+
+
+        // Create chain
+        manager.setNextApprover(director);
+        director.setNextApprover(ceo);
+
+
+        // Requests
+        System.out.println("Request 1:");
+        manager.approveLeave(2);
+
+
+        System.out.println("\nRequest 2:");
+        manager.approveLeave(4);
+
+
+        System.out.println("\nRequest 3:");
+        manager.approveLeave(10);
+    }
+}
