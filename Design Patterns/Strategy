@@ -1,0 +1,78 @@
+// 1. Strategy Interface
+interface PaymentStrategy {
+
+    void pay(double amount);
+}
+
+
+// 2. Concrete Strategy - Credit Card
+class CreditCardPayment implements PaymentStrategy {
+
+    @Override
+    public void pay(double amount) {
+        System.out.println("Paid ₹" + amount + " using Credit Card");
+    }
+}
+
+
+// 3. Concrete Strategy - UPI
+class UPIPayment implements PaymentStrategy {
+
+    @Override
+    public void pay(double amount) {
+        System.out.println("Paid ₹" + amount + " using UPI");
+    }
+}
+
+
+// 4. Concrete Strategy - PayPal
+class PayPalPayment implements PaymentStrategy {
+
+    @Override
+    public void pay(double amount) {
+        System.out.println("Paid ₹" + amount + " using PayPal");
+    }
+}
+
+
+// 5. Context
+class PaymentContext {
+
+    private PaymentStrategy paymentStrategy;
+
+    public PaymentContext(PaymentStrategy paymentStrategy) {
+        this.paymentStrategy = paymentStrategy;
+    }
+
+    public void makePayment(double amount) {
+        paymentStrategy.pay(amount);
+    }
+}
+
+
+// 6. Main Class
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Credit Card
+        PaymentContext payment1 =
+                new PaymentContext(new CreditCardPayment());
+
+        payment1.makePayment(1000);
+
+
+        // UPI
+        PaymentContext payment2 =
+                new PaymentContext(new UPIPayment());
+
+        payment2.makePayment(2000);
+
+
+        // PayPal
+        PaymentContext payment3 =
+                new PaymentContext(new PayPalPayment());
+
+        payment3.makePayment(3000);
+    }
+}
