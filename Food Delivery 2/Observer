@@ -1,0 +1,39 @@
+interface NotificationChannel {
+    void send(String customerId, String message);
+}
+
+class EmailChannel implements NotificationChannel {
+    public void send(String id, String message) {
+        System.out.println("EMAIL to " + id + ": " + message);
+    }
+}
+
+class SmsChannel implements NotificationChannel {
+    public void send(String id, String message) {
+        System.out.println("SMS to " + id + ": " + message);
+    }
+}
+
+class PushChannel implements NotificationChannel {
+    public void send(String id, String message) {
+        System.out.println("PUSH to " + id + ": " + message);
+    }
+}
+
+class NotificationObserver implements OrderObserver {
+    private final List<NotificationChannel> channels;
+
+    NotificationObserver(List<NotificationChannel> channels) {
+        this.channels = List.copyOf(channels);
+    }
+
+    public void onOrderStatusChanged(
+            String orderId, OrderStatus status) {
+        String message = "Order " + orderId
+            + " status: " + status;
+
+        for (NotificationChannel channel : channels) {
+            channel.send(orderId, message);
+        }
+    }
+}
