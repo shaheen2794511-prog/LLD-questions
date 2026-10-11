@@ -1,0 +1,10 @@
+class NotificationRegistry {
+    private static final NotificationRegistry INSTANCE =
+        new NotificationRegistry();
+
+    private NotificationRegistry() {}
+
+    public static NotificationRegistry getInstance() {
+        return INSTANCE;
+    }
+}
