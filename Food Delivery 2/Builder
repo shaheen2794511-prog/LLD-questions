@@ -1,0 +1,133 @@
+interface OrderObserver {
+    void onOrderStatusChanged(
+        String orderId, OrderStatus status);
+}
+
+class Order {
+    private final String id;
+    private final Customer customer;
+    private final Restaurant restaurant;
+    private final List<OrderItem> items;
+    private final List<OrderObserver> observers =
+        new ArrayList<>();
+
+    private OrderState state = new CreatedState();
+    private OrderStatus status = OrderStatus.CREATED;
+    private DeliveryPartner partner;
+    private double total;
+
+    private Order(Builder b) {
+        id = b.id;
+        customer = b.customer;
+        restaurant = b.restaurant;
+        items = List.copyOf(b.items);
+    }
+
+    static class Builder {
+        private final String id;
+        private final Customer customer;
+        private final Restaurant restaurant;
+        private final List<OrderItem> items = new ArrayList<>();
+
+        Builder(String id, Customer customer,
+                Restaurant restaurant) {
+            this.id = Objects.requireNonNull(id);
+            this.customer = Objects.requireNonNull(customer);
+            this.restaurant = Objects.requireNonNull(restaurant);
+        }
+
+        Builder addItem(FoodItem item, int quantity) {
+            items.add(new OrderItem(item, quantity, item.price()));
+            return this;
+        }
+
+        Order build() {
+            if (items.isEmpty()) {
+                throw new IllegalStateException(
+                    "Order must contain items");
+            }
+            return new Order(this);
+        }
+    }
+
+    void addObserver(OrderObserver observer) {
+        observers.add(observer);
+    }
+
+    void transitionTo(OrderState next) {
+        state = next;
+        status = next.status();
+        for (OrderObserver observer : observers) {
+            observer.onOrderStatusChanged(id, status);
+        }
+    }
+
+    void confirm() {
+        state.confirm(this);
+    }
+
+    void startPreparing() {
+        state.startPreparing(this);
+    }
+
+    void markReady() {
+        state.markReady(this);
+    }
+
+    void markOutForDelivery() {
+        state.markOutForDelivery(this);
+    }
+
+    void deliver() {
+        state.deliver(this);
+    }
+
+    void cancel() {
+        state.cancel(this);
+    }
+
+    void assignPartner(DeliveryPartner partner) {
+        if (status != OrderStatus.READY_FOR_PICKUP) {
+            throw new IllegalStateException(
+                "Order must be ready before assignment");
+        }
+        if (!partner.isAvailable()) {
+            throw new IllegalStateException(
+                "Partner is not available");
+        }
+        partner.assign();
+        this.partner = partner;
+    }
+
+    List<OrderItem> getItems() {
+        return items;
+    }
+
+    Customer getCustomer() {
+        return customer;
+    }
+
+    Restaurant getRestaurant() {
+        return restaurant;
+    }
+
+    String getId() {
+        return id;
+    }
+
+    OrderStatus getStatus() {
+        return status;
+    }
+
+    void setTotal(double total) {
+        this.total = total;
+    }
+
+    double getTotal() {
+        return total;
+    }
+
+    DeliveryPartner getPartner() {
+        return partner;
+    }
+}
