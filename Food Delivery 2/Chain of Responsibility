@@ -1,0 +1,36 @@
+abstract class OrderValidator {
+    private OrderValidator next;
+
+    public OrderValidator setNext(OrderValidator next) {
+        this.next = next;
+        return next;
+    }
+
+    public final void validate(Order order) {
+        check(order);
+        if (next != null) {
+            next.validate(order);
+        }
+    }
+
+    protected abstract void check(Order order);
+}
+
+class ItemAvailabilityValidator extends OrderValidator {
+    protected void check(Order order) {
+        for (OrderItem item : order.getItems()) {
+            if (!item.food().available()) {
+                throw new IllegalStateException(
+                    "Unavailable: " + item.food().name());
+            }
+        }
+    }
+}
+
+class NonEmptyOrderValidator extends OrderValidator {
+    protected void check(Order order) {
+        if (order.getItems().isEmpty()) {
+            throw new IllegalStateException("Empty order");
+        }
+    }
+}
