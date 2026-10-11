@@ -1,0 +1,44 @@
+interface DeliveryAssignmentStrategy {
+    DeliveryPartner select(
+        List<DeliveryPartner> partners, Order order);
+}
+
+class AnyAvailablePartner implements DeliveryAssignmentStrategy {
+    public DeliveryPartner select(
+            List<DeliveryPartner> partners, Order order) {
+        return partners.stream()
+            .filter(DeliveryPartner::isAvailable)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "No available delivery partners"));
+    }
+}
+
+class NearestPartner implements DeliveryAssignmentStrategy {
+    public DeliveryPartner select(
+            List<DeliveryPartner> partners, Order order) {
+        double restaurantLocation = 10.0; // Demo only.
+
+        return partners.stream()
+            .filter(DeliveryPartner::isAvailable)
+            .min(Comparator.comparingDouble(
+                p -> Math.abs(
+                    p.getLocation() - restaurantLocation)))
+            .orElseThrow(() -> new IllegalStateException(
+                "No available delivery partners"));
+    }
+}
+
+class DeliveryService {
+    private final DeliveryAssignmentStrategy strategy;
+
+    DeliveryService(DeliveryAssignmentStrategy strategy) {
+        this.strategy = strategy;
+    }
+
+    void assign(Order order, List<DeliveryPartner> partners) {
+        DeliveryPartner partner = strategy.select(partners, order);
+        order.assignPartner(partner);
+        System.out.println("Assigned: " + partner.getName());
+    }
+}
