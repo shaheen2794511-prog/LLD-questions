@@ -1,0 +1,55 @@
+interface PricingRule {
+    double apply(double amount, Customer customer);
+}
+
+class FlatDeliveryFee implements PricingRule {
+    private final double fee;
+
+    FlatDeliveryFee(double fee) {
+        this.fee = fee;
+    }
+
+    public double apply(double amount, Customer customer) {
+        return amount >= 500 ? amount : amount + fee;
+    }
+}
+
+class PremiumDiscount implements PricingRule {
+    public double apply(double amount, Customer customer) {
+        return customer.premium()
+            ? amount * 0.90
+            : amount;
+    }
+}
+
+class TaxRule implements PricingRule {
+    private final double rate;
+
+    TaxRule(double rate) {
+        this.rate = rate;
+    }
+
+    public double apply(double amount, Customer customer) {
+        return amount * (1 + rate);
+    }
+}
+
+class PricingService {
+    private final List<PricingRule> rules;
+
+    PricingService(List<PricingRule> rules) {
+        this.rules = List.copyOf(rules);
+    }
+
+    double calculate(Order order) {
+        double foodTotal = order.getItems().stream()
+            .mapToDouble(OrderItem::subtotal)
+            .sum();
+
+        double amount = foodTotal;
+        for (PricingRule rule : rules) {
+            amount = rule.apply(amount, order.getCustomer());
+        }
+        return amount;
+    }
+}
