@@ -1,0 +1,20 @@
+class LegacyGateway {
+    boolean chargeInPaise(long amountInPaise) {
+        System.out.println("Legacy gateway charge: "
+            + amountInPaise + " paise");
+        return true;
+    }
+}
+
+class LegacyPaymentAdapter implements PaymentStrategy {
+    private final LegacyGateway gateway;
+
+    LegacyPaymentAdapter(LegacyGateway gateway) {
+        this.gateway = gateway;
+    }
+
+    public boolean pay(double amount) {
+        long paise = Math.round(amount * 100);
+        return gateway.chargeInPaise(paise);
+    }
+}
