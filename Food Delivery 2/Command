@@ -1,0 +1,32 @@
+interface OrderCommand {
+    void execute();
+}
+
+class PlaceOrderCommand implements OrderCommand {
+    private final OrderFacade facade;
+    private final Order order;
+    private final PaymentStrategy payment;
+
+    PlaceOrderCommand(OrderFacade facade, Order order,
+                      PaymentStrategy payment) {
+        this.facade = facade;
+        this.order = order;
+        this.payment = payment;
+    }
+
+    public void execute() {
+        facade.placeOrder(order, payment);
+    }
+}
+
+class CancelOrderCommand implements OrderCommand {
+    private final Order order;
+
+    CancelOrderCommand(Order order) {
+        this.order = order;
+    }
+
+    public void execute() {
+        order.cancel();
+    }
+}
