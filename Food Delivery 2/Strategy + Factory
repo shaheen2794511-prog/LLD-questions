@@ -1,0 +1,43 @@
+interface PaymentStrategy {
+    boolean pay(double amount);
+}
+
+class CreditCardPayment implements PaymentStrategy {
+    public boolean pay(double amount) {
+        System.out.println("Credit card charged: ₹" + amount);
+        return true;
+    }
+}
+
+class UpiPayment implements PaymentStrategy {
+    public boolean pay(double amount) {
+        System.out.println("UPI payment: ₹" + amount);
+        return true;
+    }
+}
+
+class CashOnDeliveryPayment implements PaymentStrategy {
+    public boolean pay(double amount) {
+        System.out.println("COD selected: ₹" + amount);
+        return true; // Accepted as a COD commitment, not collected cash.
+    }
+}
+
+class PaymentFactory {
+    public static PaymentStrategy create(PaymentMethod method) {
+        return switch (method) {
+            case CREDIT_CARD -> new CreditCardPayment();
+            case UPI -> new UpiPayment();
+            case CASH_ON_DELIVERY -> new CashOnDeliveryPayment();
+        };
+    }
+}
+
+class PaymentService {
+    public void makePayment(Order order, PaymentStrategy strategy) {
+        if (!strategy.pay(order.getTotal())) {
+            throw new IllegalStateException("Payment failed");
+        }
+        order.confirm();
+    }
+}
