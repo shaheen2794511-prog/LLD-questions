@@ -1,0 +1,23 @@
+class OrderFacade {
+    private final OrderValidator validator;
+    private final PricingService pricing;
+    private final PaymentService payments;
+
+    OrderFacade(OrderValidator validator,
+                PricingService pricing,
+                PaymentService payments) {
+        this.validator = validator;
+        this.pricing = pricing;
+        this.payments = payments;
+    }
+
+    void placeOrder(Order order, PaymentStrategy payment) {
+        validator.validate(order);
+        order.setTotal(pricing.calculate(order));
+        payments.makePayment(order, payment);
+    }
+
+    void cancelOrder(Order order) {
+        order.cancel();
+    }
+}
