@@ -1,0 +1,45 @@
+interface MessageSender {
+    void send(String recipient, String message);
+}
+
+class EmailSender implements MessageSender {
+    public void send(String recipient, String message) {
+        System.out.println("Email to " + recipient + ": " + message);
+    }
+}
+
+class SmsSender implements MessageSender {
+    public void send(String recipient, String message) {
+        System.out.println("SMS to " + recipient + ": " + message);
+    }
+}
+
+abstract class CustomerMessage {
+    protected final MessageSender sender;
+
+    CustomerMessage(MessageSender sender) {
+        this.sender = sender;
+    }
+
+    abstract void notifyCustomer(String recipient);
+}
+
+class OrderConfirmedMessage extends CustomerMessage {
+    OrderConfirmedMessage(MessageSender sender) {
+        super(sender);
+    }
+
+    void notifyCustomer(String recipient) {
+        sender.send(recipient, "Your order is confirmed.");
+    }
+}
+
+class DeliveryUpdateMessage extends CustomerMessage {
+    DeliveryUpdateMessage(MessageSender sender) {
+        super(sender);
+    }
+
+    void notifyCustomer(String recipient) {
+        sender.send(recipient, "Your order is out for delivery.");
+    }
+}
