@@ -1,55 +1,44 @@
-interface PricingRule {
-    double apply(double amount, Customer customer);
+interface PriceCalculator {
+    double calculate(Order order);
 }
 
-class FlatDeliveryFee implements PricingRule {
-    private final double fee;
-
-    FlatDeliveryFee(double fee) {
-        this.fee = fee;
-    }
-
-    public double apply(double amount, Customer customer) {
-        return amount >= 500 ? amount : amount + fee;
-    }
-}
-
-class PremiumDiscount implements PricingRule {
-    public double apply(double amount, Customer customer) {
-        return customer.premium()
-            ? amount * 0.90
-            : amount;
-    }
-}
-
-class TaxRule implements PricingRule {
-    private final double rate;
-
-    TaxRule(double rate) {
-        this.rate = rate;
-    }
-
-    public double apply(double amount, Customer customer) {
-        return amount * (1 + rate);
-    }
-}
-
-class PricingService {
-    private final List<PricingRule> rules;
-
-    PricingService(List<PricingRule> rules) {
-        this.rules = List.copyOf(rules);
-    }
-
-    double calculate(Order order) {
-        double foodTotal = order.getItems().stream()
+class FoodPriceCalculator implements PriceCalculator {
+    public double calculate(Order order) {
+        return order.getItems().stream()
             .mapToDouble(OrderItem::subtotal)
             .sum();
-
-        double amount = foodTotal;
-        for (PricingRule rule : rules) {
-            amount = rule.apply(amount, order.getCustomer());
-        }
-        return amount;
     }
 }
+
+abstract class PriceDecorator implements PriceCalculator {
+    protected final PriceCalculator wrapped;
+
+    PriceDecorator(PriceCalculator wrapped) {
+        this.wrapped = wrapped;
+    }
+}
+
+class DeliveryFeeDecorator extends PriceDecorator {
+    DeliveryFeeDecorator(PriceCalculator wrapped) {
+        super(wrapped);
+    }
+
+    public double calculate(Order order) {
+        double amount = wrapped.calculate(order);
+        return amount >= 500 ? amount : amount + 50;
+    }
+}
+
+class PremiumDiscountDecorator extends PriceDecorator {
+    PremiumDiscountDecorator(PriceCalculator wrapped) {
+        super(wrapped);
+    }
+
+    public double calculate(Order order) {
+        double amount = wrapped.calculate(order);
+        return order.getCustomer().premium()
+            ? amount * 0.90 : amount;
+    }
+}
+
+    
