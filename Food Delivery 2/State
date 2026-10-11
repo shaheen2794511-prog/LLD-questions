@@ -1,0 +1,115 @@
+interface OrderState {
+    OrderStatus status();
+
+    default void confirm(Order o) {
+        throw new IllegalStateException(
+            "Cannot confirm from " + status());
+    }
+
+    default void startPreparing(Order o) {
+        throw new IllegalStateException(
+            "Cannot prepare from " + status());
+    }
+
+    default void markReady(Order o) {
+        throw new IllegalStateException(
+            "Cannot mark ready from " + status());
+    }
+
+    default void markOutForDelivery(Order o) {
+        throw new IllegalStateException(
+            "Cannot dispatch from " + status());
+    }
+
+    default void deliver(Order o) {
+        throw new IllegalStateException(
+            "Cannot deliver from " + status());
+    }
+
+    default void cancel(Order o) {
+        throw new IllegalStateException(
+            "Cannot cancel from " + status());
+    }
+}
+
+class CreatedState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.CREATED;
+    }
+
+    public void confirm(Order o) {
+        o.transitionTo(new ConfirmedState());
+    }
+
+    public void cancel(Order o) {
+        o.transitionTo(new CancelledState());
+    }
+}
+
+class ConfirmedState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.CONFIRMED;
+    }
+
+    public void startPreparing(Order o) {
+        o.transitionTo(new PreparingState());
+    }
+
+    public void cancel(Order o) {
+        o.transitionTo(new CancelledState());
+    }
+}
+
+class PreparingState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.PREPARING;
+    }
+
+    public void markReady(Order o) {
+        o.transitionTo(new ReadyState());
+    }
+
+    public void cancel(Order o) {
+        o.transitionTo(new CancelledState());
+    }
+}
+
+class ReadyState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.READY_FOR_PICKUP;
+    }
+
+    public void markOutForDelivery(Order o) {
+        if (o.getPartner() == null) {
+            throw new IllegalStateException(
+                "Assign a delivery partner first");
+        }
+        o.transitionTo(new OutForDeliveryState());
+    }
+
+    public void cancel(Order o) {
+        o.transitionTo(new CancelledState());
+    }
+}
+
+class OutForDeliveryState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.OUT_FOR_DELIVERY;
+    }
+
+    public void deliver(Order o) {
+        o.transitionTo(new DeliveredState());
+    }
+}
+
+class DeliveredState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.DELIVERED;
+    }
+}
+
+class CancelledState implements OrderState {
+    public OrderStatus status() {
+        return OrderStatus.CANCELLED;
+    }
+}
