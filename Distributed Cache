@@ -1,0 +1,1518 @@
+Cache System LLD in Java — Complete Code and Explanation
+From your screenshots, the problem is to design a generic, extensible cache system supporting three main operations:
+1. Put: Store a key-value pair.
+2. Get: Retrieve a value using its key.
+3. Eviction: When the cache is full, remove an existing entry according to an eviction policy, such as LRU (Least Recently Used).
+The design in your screenshots uses a Cache, a Storage interface, an EvictionPolicy interface, an LRUEvictionPolicy, and a custom doubly linked list.
+1. Overall class design
+Cache
+
+Coordinates put() and get()
+
+
+Storage
+
+Stores key-value pairs
+
+HashMapBasedStorage
+
+
+**EvictionPolicy
+
+
+DoublyLinkedList
+
+Tracks usage order for LRU in O(1) time
+
+
+The important design principle is separation of concerns: storage handles data, the eviction policy handles replacement decisions, and the cache coordinates both.
+2. Complete Java implementation
+For easier interview preparation, the following is a complete runnable version in one Java file. It preserves the architecture shown in your screenshots while making the implementation self-contained.
+CacheSystem.java
+
+import java.util.HashMap;
+import java.util.Map;
+
+// ==================== EXCEPTIONS ====================
+
+class NotFoundException extends RuntimeException {
+    public NotFoundException(String message) {
+        super(message);
+    }
+}
+
+class StorageFullException extends RuntimeException {
+    public StorageFullException(String message) {
+        super(message);
+    }
+}
+
+// ==================== STORAGE INTERFACE ====================
+
+interface Storage<K, V> {
+    void add(K key, V value);
+
+    V get(K key);
+
+    void remove(K key);
+}
+
+// ==================== HASHMAP STORAGE ====================
+
+class HashMapBasedStorage<K, V> implements Storage<K, V> {
+
+    private final Map<K, V> storage;
+    private final int capacity;
+
+    public HashMapBasedStorage(int capacity) {
+        if (capacity <= 0) {
+            throw new IllegalArgumentException(
+                "Capacity must be positive"
+            );
+        }
+
+        this.capacity = capacity;
+        this.storage = new HashMap<>();
+    }
+
+    @Override
+    public void add(K key, V value) {
+        // Updating an existing key does not need extra capacity.
+        if (!storage.containsKey(key)
+                && storage.size() >= capacity) {
+            throw new StorageFullException("Storage is full");
+        }
+
+        storage.put(key, value);
+    }
+
+    @Override
+    public V get(K key) {
+        if (!storage.containsKey(key)) {
+            throw new NotFoundException("Key not found: " + key);
+        }
+
+        return storage.get(key);
+    }
+
+    @Override
+    public void remove(K key) {
+        if (!storage.containsKey(key)) {
+            throw new NotFoundException("Key not found: " + key);
+        }
+
+        storage.remove(key);
+    }
+
+    public int size() {
+        return storage.size();
+    }
+}
+
+// ==================== EVICTION POLICY ====================
+
+interface EvictionPolicy<K> {
+
+    void keyAccessed(K key);
+
+    K evictKey();
+}
+
+// ==================== DOUBLY LINKED LIST NODE ====================
+
+class DoublyLinkedListNode<E> {
+    E element;
+    DoublyLinkedListNode<E> prev;
+    DoublyLinkedListNode<E> next;
+
+    public DoublyLinkedListNode(E element) {
+        this.element = element;
+    }
+}
+
+// ==================== DOUBLY LINKED LIST ====================
+
+class DoublyLinkedList<E> {
+
+    private DoublyLinkedListNode<E> first;
+    private DoublyLinkedListNode<E> last;
+
+    public DoublyLinkedList() {
+        first = null;
+        last = null;
+    }
+
+    // Add a node at the most-recently-used end.
+    public DoublyLinkedListNode<E> addElementAtLast(E element) {
+        DoublyLinkedListNode<E> node =
+            new DoublyLinkedListNode<>(element);
+
+        if (last == null) {
+            first = last = node;
+        } else {
+            last.next = node;
+            node.prev = last;
+            last = node;
+        }
+
+        return node;
+    }
+
+    // Remove a node from any position.
+    public void detachNode(DoublyLinkedListNode<E> node) {
+        if (node == null) {
+            return;
+        }
+
+        if (node == first) {
+            first = node.next;
+
+            if (first != null) {
+                first.prev = null;
+            }
+        } else {
+            node.prev.next = node.next;
+        }
+
+        if (node == last) {
+            last = node.prev;
+
+            if (last != null) {
+                last.next = null;
+            }
+        } else {
+            node.next.prev = node.prev;
+        }
+
+        // Disconnect the removed node.
+        node.prev = null;
+        node.next = null;
+    }
+
+    public DoublyLinkedListNode<E> getFirst() {
+        return first;
+    }
+
+    public boolean isEmpty() {
+        return first == null;
+    }
+}
+
+// ==================== LRU EVICTION POLICY ====================
+
+class LRUEvictionPolicy<K> implements EvictionPolicy<K> {
+
+    private final DoublyLinkedList<K> dll;
+
+    // Maps each key to its corresponding linked-list node.
+    private final Map<K, DoublyLinkedListNode<K>> mapper;
+
+    public LRUEvictionPolicy() {
+        dll = new DoublyLinkedList<>();
+        mapper = new HashMap<>();
+    }
+
+    @Override
+    public void keyAccessed(K key) {
+
+        // Key already exists: move it to the MRU end.
+        if (mapper.containsKey(key)) {
+            DoublyLinkedListNode<K> node = mapper.get(key);
+
+            dll.detachNode(node);
+
+            DoublyLinkedListNode<K> updatedNode =
+                dll.addElementAtLast(key);
+
+            mapper.put(key, updatedNode);
+        } else {
+            // New key: add it at the MRU end.
+            DoublyLinkedListNode<K> newNode =
+                dll.addElementAtLast(key);
+
+            mapper.put(key, newNode);
+        }
+    }
+
+    @Override
+    public K evictKey() {
+
+        // The first node represents the least recently used key.
+        DoublyLinkedListNode<K> first = dll.getFirst();
+
+        if (first == null) {
+            return null;
+        }
+
+        K keyToEvict = first.element;
+
+        dll.detachNode(first);
+        mapper.remove(keyToEvict);
+
+        return keyToEvict;
+    }
+}
+
+// ==================== CACHE ====================
+
+class Cache<K, V> {
+
+    private final EvictionPolicy<K> evictionPolicy;
+    private final Storage<K, V> storage;
+
+    public Cache(
+            EvictionPolicy<K> evictionPolicy,
+            Storage<K, V> storage) {
+
+        this.evictionPolicy = evictionPolicy;
+        this.storage = storage;
+    }
+
+    public void put(K key, V value) {
+
+        try {
+            // First attempt to store the entry.
+            storage.add(key, value);
+
+            // Record the successful access.
+            evictionPolicy.keyAccessed(key);
+
+        } catch (StorageFullException exception) {
+
+            // Find the key to evict.
+            K keyToRemove = evictionPolicy.evictKey();
+
+            if (keyToRemove == null) {
+                throw new IllegalStateException(
+                    "Storage is full but no key can be evicted"
+                );
+            }
+
+            // Free space and retry the insertion.
+            storage.remove(keyToRemove);
+            storage.add(key, value);
+
+            evictionPolicy.keyAccessed(key);
+        }
+    }
+
+    public V get(K key) {
+
+        try {
+            V value = storage.get(key);
+
+            // A successful read makes this key recently used.
+            evictionPolicy.keyAccessed(key);
+
+            return value;
+
+        } catch (NotFoundException exception) {
+            return null;
+        }
+    }
+}
+
+// ==================== MAIN ====================
+
+public class CacheSystem {
+
+    public static void main(String[] args) {
+
+        Storage<String, String> storage =
+            new HashMapBasedStorage<>(3);
+
+        EvictionPolicy<String> policy =
+            new LRUEvictionPolicy<>();
+
+        Cache<String, String> cache =
+            new Cache<>(policy, storage);
+
+        cache.put("A", "Apple");
+        cache.put("B", "Banana");
+        cache.put("C", "Cherry");
+
+        System.out.println(cache.get("A")); // Apple
+
+        // Cache is full. B is now the least recently used.
+        cache.put("D", "Dates");
+
+        System.out.println(cache.get("B")); // null
+        System.out.println(cache.get("C")); // Cherry
+        System.out.println(cache.get("A")); // Apple
+        System.out.println(cache.get("D")); // Dates
+    }
+}
+
+
+
+3. Explanation of every class
+Class 1: Storage<K, V> — interface
+interface Storage<K, V> {
+    void add(K key, V value);
+    V get(K key);
+    void remove(K key);
+}
+
+
+This defines how cache data is stored and accessed.
+- add() inserts or updates a key-value pair.
+- get() retrieves a value.
+- remove() deletes a key-value pair.
+Why use an interface? We can replace HashMapBasedStorage with another storage implementation without changing the Cache class.
+
+K and V are generics, meaning the cache can store different key and value types.
+
+For example, Cache<String, Integer> or Cache<Integer, String>.
+Class 2: HashMapBasedStorage<K, V>
+This class implements the Storage interface using a HashMap.
+
+It maintains two fields:
+private final Map<K, V> storage;
+private final int capacity;
+
+
+- storage holds the actual key-value pairs.
+- capacity is the maximum number of entries allowed.
+Suppose the capacity is 3:
+Key	Value
+A	Apple
+B	Banana
+C	Cherry
+
+When a new key is added, the implementation checks whether the storage is full. If it is, it throws StorageFullException.
+
+Why throw an exception? The storage class should report that it cannot accept a new entry. The Cache class then decides which existing entry should be removed.
+Class 3: EvictionPolicy<K>
+interface EvictionPolicy<K> {
+    void keyAccessed(K key);
+    K evictKey();
+}
+
+
+This interface separates the eviction algorithm from the cache implementation.
+- keyAccessed(key) informs the policy that a key has been accessed.
+- evictKey() returns the key that should be removed.
+The policy can be LRU, LFU, FIFO, or another algorithm. Each policy can implement the same interface.
+Class 4: DoublyLinkedListNode<E>
+Every node stores:
+E element;
+DoublyLinkedListNode<E> prev;
+DoublyLinkedListNode<E> next;
+
+
+- element stores the key.
+- prev points to the previous node.
+- next points to the next node.
+A doubly linked list can remove or move a known node in \(O(1)\) time because it has pointers in both directions.
+Class 5: DoublyLinkedList<E>
+The list maintains two pointers:
+private DoublyLinkedListNode<E> first;
+private DoublyLinkedListNode<E> last;
+
+
+Here, first is the least recently used end and last is the most recently used end.
+
+The three important operations are:
+- addElementAtLast(element): adds a new node at the most-recently-used end.
+- detachNode(node): removes a node from its current position.
+- getFirst(): returns the least recently used node.
+For example:
+LRU end
+
+MRU end
+
+B
+Oldest
+C
+Middle
+A
+Newest
+
+If the cache is full, B is removed first.
+
+Class 6: LRUEvictionPolicy<K>
+This class implements the LRU algorithm.
+
+It uses two data structures:
+private final DoublyLinkedList<K> dll;
+private final Map<K, DoublyLinkedListNode<K>> mapper;
+
+
+The linked list maintains the order of usage. The map lets us find the corresponding list node directly using a key.
+
+Why do we need both?
+
+A linked list alone would require searching for a key, taking \(O(n)\) time. With the map, we can locate the node in average \(O(1)\) time.
+keyAccessed(key)
+If the key is already in the map, its node is detached and added at the end of the list.
+
+If the key is new, a new node is added at the end.
+
+Therefore, the most recently accessed key always moves to the MRU end.
+evictKey()
+The method obtains the first node, extracts its key, removes the node from the list and removes the key from the map.
+
+It then returns the key to the Cache class, which removes the corresponding value from storage.
+Class 7: Cache<K, V>
+This is the main coordinator.
+
+It depends on abstractions rather than concrete implementations:
+private final EvictionPolicy<K> evictionPolicy;
+private final Storage<K, V> storage;
+
+
+How put() works
+1. Try adding the key-value pair to storage.
+2. If insertion succeeds, update the eviction policy.
+3. If storage is full, ask the policy for a key to evict.
+4. Remove that key from storage.
+5. Insert the new key-value pair.
+6. Update the policy with the new key.
+How get() works
+1. Ask storage for the value.
+2. If the key exists, mark it as recently used.
+3. Return the value.
+4. If the key does not exist, return null.
+4. Dry run of the LRU algorithm
+Assume the cache capacity is 3.
+Step 1 of 6
+Cache operation
+
+put(A, Apple)
+List order: least recently used → most recently used
+A
+
+
+Removed: None
+A insertedPreviousNext
+
+The important observation is that get(A) changes the usage order. Therefore, when D is inserted, B is evicted—not A.
+5. Design patterns and OOP principles
+Principle or pattern	Where it is used
+Strategy pattern	EvictionPolicy with LRUEvictionPolicy
+Programming to an interface	Cache depends on Storage and EvictionPolicy
+Single Responsibility Principle	Storage manages data; policy manages eviction
+Open/Closed Principle	New eviction policies can be added without rewriting Cache
+Dependency injection	Policy and storage are passed through the Cache constructor
+Encapsulation	Internal map and linked-list state are hidden inside their classes
+
+The Strategy pattern is especially important here: the cache does not need to know how LRU works. It simply calls keyAccessed() and evictKey().
+6. Time and space complexity
+Operation	Average time
+Storage get()	\(O(1)\)
+Storage add()	\(O(1)\)
+Storage remove()	\(O(1)\)
+LRU keyAccessed()	\(O(1)\)
+LRU evictKey()	\(O(1)\)
+Cache get()	\(O(1)\)
+Cache put()	\(O(1)\) average
+
+Space complexity is \(O(C)\), where \(C\) is the cache capacity. The cache stores up to \(C\) entries and the LRU policy maintains up to \(C\) list nodes and map entries.
+
+These complexities assume average-case HashMap operations.
+
+Interview note: This implementation is not thread-safe. For a production cache, you would also consider concurrent access, null-value semantics, exception handling, and whether an existing key update should refresh its recency.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+These additional screenshots show a few important details from the original Cache LLD implementation, including StorageFullException, InvalidElementException, the Storage interface, and CacheFactory.
+1. Additional classes from your screenshots
+StorageFullException.java
+package com.ud itagarwal.cache.exceptions;
+
+public class StorageFullException extends RuntimeException {
+}
+
+
+Use the correct package name without spaces:
+package com.ud itagarwal.cache.exceptions;
+
+public class StorageFullException extends RuntimeException {
+}
+
+
+This exception indicates that storage has reached its capacity. The Cache class catches it and initiates eviction.
+Storage.java
+Your screenshot declares the operations and their exceptions:
+public interface Storage<Key, Value> {
+
+    void add(Key key, Value value)
+        throws StorageFullException;
+
+    void remove(Key key)
+        throws NotFoundException;
+
+    Value get(Key key)
+        throws NotFoundException;
+}
+
+
+This contract makes storage independent of the eviction algorithm.
+InvalidElementException
+The custom doubly linked list throws this exception if an invalid element, such as null, is passed to its insertion method.
+public class InvalidElementException extends RuntimeException {
+}
+
+
+For example:
+public DoublyLinkedListNode<E> addElementAtLast(E element) {
+    if (element == null) {
+        throw new InvalidElementException();
+    }
+
+    // Create and append the node.
+}
+
+
+CacheFactory.java
+Your screenshot shows a factory that creates a cache with default implementations.
+public class CacheFactory<Key, Value> {
+
+    public Cache<Key, Value> defaultCache() {
+        return new Cache<>(
+            new LRUEvictionPolicy<Key>(),
+            new HashMapBasedStorage<Key, Value>()
+        );
+    }
+}
+
+
+The constructor for HashMapBasedStorage must match the arguments used in the actual implementation. If it requires a capacity, pass that capacity here.
+
+Why use a factory? The client can request a default cache without knowing how the storage and eviction policy are constructed.
+2. Important correction to the earlier implementation
+The original screenshots use a custom DoublyLinkedList, which may throw InvalidElementException and InvalidNodeException. The earlier simplified implementation did not include those custom exceptions or the factory class.
+
+For a complete project matching your screenshots, keep the classes in separate files and use consistent package declarations:
+- com.ud itagarwal.cache — Cache
+- com.ud itagarwal.cache.storage — Storage, HashMapBasedStorage
+- com.ud itagarwal.cache.policies — EvictionPolicy, LRUEvictionPolicy
+- com.ud itagarwal.cache.factories — CacheFactory
+- com.ud itagarwal.cache.exceptions — NotFoundException, StorageFullException
+- com.ud itagarwal.algorithms — DoublyLinkedList, DoublyLinkedListNode and their exceptions
+Replace the spaced package text above with the exact valid Java package name used in your project (the screenshot appears to show com.ud itagarwal as a visual artifact; verify the actual spelling in IntelliJ).
+
+The central flow remains: Cache coordinates storage and eviction, LRUEvictionPolicy tracks access order, and the doubly linked list enables constant-time node updates.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+These new screenshots add the JUnit test cases for the custom doubly linked list and LRU eviction policy, along with the Cache and CacheFactory implementation.
+
+I can combine these with your previous screenshots to explain the complete LLD project. Here is what the new code is testing.
+1. DoublyLinkedListTest.java
+The test checks whether elements and existing nodes are correctly added and detached.
+@Test
+void testDLLAddition() {
+    DoublyLinkedListNode<Integer> node1 =
+        new DoublyLinkedListNode<>(1);
+    DoublyLinkedListNode<Integer> node2 =
+        new DoublyLinkedListNode<>(2);
+    DoublyLinkedListNode<Integer> node3 =
+        new DoublyLinkedListNode<>(3);
+    DoublyLinkedListNode<Integer> node4 =
+        new DoublyLinkedListNode<>(4);
+
+    DoublyLinkedList<Integer> dll = new DoublyLinkedList<>();
+
+    dll.addNodeAtLast(node1);
+    verifyDLL(dll, ImmutableList.of(1));
+
+    dll.addNodeAtLast(node2);
+    verifyDLL(dll, ImmutableList.of(1, 2));
+
+    dll.addNodeAtLast(node3);
+    verifyDLL(dll, ImmutableList.of(1, 2, 3));
+
+    dll.addNodeAtLast(node4);
+    verifyDLL(dll, ImmutableList.of(1, 2, 3, 4));
+
+    dll.addElementAtLast(5);
+    verifyDLL(dll, ImmutableList.of(1, 2, 3, 4, 5));
+
+    dll.detachNode(node3);
+    verifyDLL(dll, ImmutableList.of(1, 2, 4, 5));
+
+    dll.detachNode(null);
+    verifyDLL(dll, ImmutableList.of(1, 2, 4, 5));
+}
+
+
+The verifyDLL() helper checks that:
+- The first node contains the expected first element.
+- The last node contains the expected last element.
+- Every node contains the expected value in forward traversal.
+- The list has no unexpected extra nodes.
+ImmutableList.of() creates an expected list that cannot be modified.
+2. LRUEvictionPolicyTest.java
+LRU stands for Least Recently Used. The policy evicts the key that has not been accessed for the longest time.
+
+For example, the test initially accesses keys in this order:
+lruEvictionPolicy.keyAccessed(1);
+lruEvictionPolicy.keyAccessed(2);
+lruEvictionPolicy.keyAccessed(3);
+lruEvictionPolicy.keyAccessed(4);
+
+
+The eviction order should be:
+assertEquals(1, lruEvictionPolicy.evictKey());
+assertEquals(2, lruEvictionPolicy.evictKey());
+assertEquals(3, lruEvictionPolicy.evictKey());
+assertEquals(4, lruEvictionPolicy.evictKey());
+
+
+The screenshot also shows a test for reaccessing keys. If key 2 is accessed again after keys 1, 2, and 3, it moves to the most-recently-used position.
+
+The order becomes:
+
+1 → 3 → 2
+
+Therefore, key 1 is evicted first.
+3. How the classes work together
+CacheFactory
+
+Creates the default cache
+
+
+Cache
+
+Coordinates storage and eviction
+
+
+
+
+Storage
+
+HashMapBasedStorage
+
+
+EvictionPolicy
+
+LRUEvictionPolicy
+
+
+
+The LRU policy uses the custom doubly linked list and a HashMap to track node positions.
+
+4. Important interview explanation
+When Cache.put(key, value) encounters full storage:
+1. It attempts to add the entry.
+2. Storage throws StorageFullException.
+3. The cache asks the LRU policy for the least recently used key.
+4. The cache removes that key from storage.
+5. It retries inserting the new entry.
+When Cache.get(key) succeeds, the key is marked as recently accessed so that it is less likely to be evicted next.
+
+This design uses the Strategy pattern for the eviction policy, a Factory for cache creation, and a HashMap + doubly linked list for efficient LRU operations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class DoublyLinkedListNode<E> {
+    E element;
+    DoublyLinkedListNode<E> prev;
+    DoublyLinkedListNode<E> next;
+
+    public DoublyLinkedListNode(E element) {
+        this.element = element;
+    }
+}
+
+// ==================== DOUBLY LINKED LIST ====================
+
+class DoublyLinkedList<E> {
+
+    private DoublyLinkedListNode<E> first;
+    private DoublyLinkedListNode<E> last;
+
+    public DoublyLinkedList() {
+        first = null;
+        last = null;
+    }
+
+    // Add a node at the most-recently-used end.
+    public DoublyLinkedListNode<E> addElementAtLast(E element) {
+        DoublyLinkedListNode<E> node =
+            new DoublyLinkedListNode<>(element);
+
+        if (last == null) {
+            first = last = node;
+        } else {
+            last.next = node;
+            node.prev = last;
+            last = node;
+        }
+
+        return node;
+    }
+
+    // Remove a node from any position.
+    public void detachNode(DoublyLinkedListNode<E> node) {
+        if (node == null) {
+            return;
+        }
+
+        if (node == first) {
+            first = node.next;
+
+            if (first != null) {
+                first.prev = null;
+            }
+        } else {
+            node.prev.next = node.next;
+        }
+
+        if (node == last) {
+            last = node.prev;
+
+            if (last != null) {
+                last.next = null;
+            }
+        } else {
+            node.next.prev = node.prev;
+        }
+
+        // Disconnect the removed node.
+        node.prev = null;
+        node.next = null;
+    }
+
+    public DoublyLinkedListNode<E> getFirst() {
+        return first;
+    }
+
+    public boolean isEmpty() {
+        return first == null;
+    }
+}
+
+// ==================== LRU EVICTION POLICY ====================
+
+class LRUEvictionPolicy<K> implements EvictionPolicy<K> {
+
+    private final DoublyLinkedList<K> dll;
+
+    // Maps each key to its corresponding linked-list node.
+    private final Map<K, DoublyLinkedListNode<K>> mapper;
+
+    public LRUEvictionPolicy() {
+        dll = new DoublyLinkedList<>();
+        mapper = new HashMap<>();
+    }
+
+    @Override
+    public void keyAccessed(K key) {
+
+        // Key already exists: move it to the MRU end.
+        if (mapper.containsKey(key)) {
+            DoublyLinkedListNode<K> node = mapper.get(key);
+
+            dll.detachNode(node);
+
+            DoublyLinkedListNode<K> updatedNode =
+                dll.addElementAtLast(key);
+
+            mapper.put(key, updatedNode);
+        } else {
+            // New key: add it at the MRU end.
+            DoublyLinkedListNode<K> newNode =
+                dll.addElementAtLast(key);
+
+            mapper.put(key, newNode);
+        }
+    }
+
+    @Override
+    public K evictKey() {
+
+        // The first node represents the least recently used key.
+        DoublyLinkedListNode<K> first = dll.getFirst();
+
+        if (first == null) {
+            return null;
+        }
+
+        K keyToEvict = first.element;
+
+        dll.detachNode(first);
+        mapper.remove(keyToEvict);
+
+        return keyToEvict;
+    }
+}
+
+// ==================== CACHE ====================
+
+class Cache<K, V> {
+
+    private final EvictionPolicy<K> evictionPolicy;
+    private final Storage<K, V> storage;
+
+    public Cache(
+            EvictionPolicy<K> evictionPolicy,
+            Storage<K, V> storage) {
+
+        this.evictionPolicy = evictionPolicy;
+        this.storage = storage;
+    }
+
+    public void put(K key, V value) {
+
+        try {
+            // First attempt to store the entry.
+            storage.add(key, value);
+
+            // Record the successful access.
+            evictionPolicy.keyAccessed(key);
+
+        } catch (StorageFullException exception) {
+
+            // Find the key to evict.
+            K keyToRemove = evictionPolicy.evictKey();
+
+            if (keyToRemove == null) {
+                throw new IllegalStateException(
+                    "Storage is full but no key can be evicted"
+                );
+            }
+
+            // Free space and retry the insertion.
+            storage.remove(keyToRemove);
+            storage.add(key, value);
+
+            evictionPolicy.keyAccessed(key);
+        }
+    }
+
+    public V get(K key) {
+
+        try {
+            V value = storage.get(key);
+
+            // A successful read makes this key recently used.
+            evictionPolicy.keyAccessed(key);
+
+            return value;
+
+        } catch (NotFoundException exception) {
+            return null;
+        }
+    }
+}
+
+// ==================== MAIN ====================
+
+public class CacheSystem {
+
+    public static void main(String[] args) {
+
+        Storage<String, String> storage =
+            new HashMapBasedStorage<>(3);
+
+        EvictionPolicy<String> policy =
+            new LRUEvictionPolicy<>();
+
+        Cache<String, String> cache =
+            new Cache<>(policy, storage);
+
+        cache.put("A", "Apple");
+        cache.put("B", "Banana");
+        cache.put("C", "Cherry");
+
+        System.out.println(cache.get("A")); // Apple
+
+        // Cache is full. B is now the least recently used.
+        cache.put("D", "Dates");
+
+        System.out.println(cache.get("B")); // null
+        System.out.println(cache.get("C")); // Cherry
+        System.out.println(cache.get("A")); // Apple
+        System.out.println(cache.get("D")); // Dates
+    }
+} expalin this
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+expalin this
+
+
+
+
+
+
+
+
+
+
+
+
+
+This code implements an LRU Cache (Least Recently Used Cache) in Java using a HashMap, a custom Doubly Linked List, and several object-oriented design principles.
+
+I’ll explain it class by class, then dry-run the main() method so you understand exactly how the cache works.
+1. What is an LRU Cache?
+An LRU cache stores a limited number of key-value pairs. When the cache becomes full and a new entry needs to be inserted, it removes the least recently used entry.
+
+For example, suppose the cache capacity is 3.
+Operation	Cache entries, oldest → newest
+put(A, Apple)	A
+put(B, Banana)	A → B
+put(C, Cherry)	A → B → C
+get(A)	B → C → A
+put(D, Dates)	C → A → D
+
+When we access A, it becomes the most recently used entry. Therefore, when D is inserted, B is removed, because B is the least recently used.
+
+The code uses two data structures to achieve efficient operations:
+- HashMap: Finds a key's linked-list node in \(O(1)\) average time.
+- Doubly Linked List: Moves and removes nodes in \(O(1)\) time when the node reference is known.
+2. DoublyLinkedListNode<E> — represents one node
+class DoublyLinkedListNode<E> {
+    E element;
+    DoublyLinkedListNode<E> prev;
+    DoublyLinkedListNode<E> next;
+
+    public DoublyLinkedListNode(E element) {
+        this.element = element;
+    }
+}
+
+
+Each node stores three things:
+- element: the key stored in the node.
+- prev: reference to the previous node.
+- next: reference to the next node.
+E is a generic type parameter. It allows the node to store different types, such as String, Integer, or another object.
+
+For example, if the node stores key "A":
+prev
+
+null
+
+element
+
+A
+
+next
+
+null
+
+
+A node containing A, with no neighboring nodes yet.
+
+The constructor:
+public DoublyLinkedListNode(E element) {
+    this.element = element;
+}
+
+
+Initializes the element. Java automatically initializes prev and next to null.
+3. DoublyLinkedList<E> — maintains the order
+private DoublyLinkedListNode<E> first;
+private DoublyLinkedListNode<E> last;
+
+
+These two references keep track of the ends of the list.
+- first: the oldest, least recently used key.
+- last: the newest, most recently used key.
+For this implementation, the list is ordered from LRU to MRU.
+Example: A → B → C
+A
+
+LRU
+
+B
+
+C
+
+MRU
+
+
+first → A
+
+last → C
+
+
+A. Constructor
+public DoublyLinkedList() {
+    first = null;
+    last = null;
+}
+
+
+When the list is empty, neither end points to a node.
+B. addElementAtLast(E element)
+public DoublyLinkedListNode<E> addElementAtLast(E element) {
+    DoublyLinkedListNode<E> node =
+        new DoublyLinkedListNode<>(element);
+
+    if (last == null) {
+        first = last = node;
+    } else {
+        last.next = node;
+        node.prev = last;
+        last = node;
+    }
+
+    return node;
+}
+
+
+Purpose: Add an element to the MRU end and return its node reference.
+
+There are two cases.
+
+Case 1: The list is empty
+first = last = node;
+
+
+Both first and last point to the newly created node.
+
+Case 2: The list already contains nodes
+last.next = node;
+node.prev = last;
+last = node;
+
+
+Suppose the list is A → B and we add C.
+1. last.next = node: B's next points to C.
+2. node.prev = last: C's prev points to B.
+3. last = node: last now points to C.
+Result: A ⇄ B ⇄ C.
+
+Why return node? The LRU policy stores this reference in a HashMap so that it can find and move the node later without searching the list.
+C. detachNode(node)
+This method removes a node from any position in the list.
+public void detachNode(DoublyLinkedListNode<E> node) {
+    if (node == null) {
+        return;
+    }
+
+    if (node == first) {
+        first = node.next;
+
+        if (first != null) {
+            first.prev = null;
+        }
+    } else {
+        node.prev.next = node.next;
+    }
+
+    if (node == last) {
+        last = node.prev;
+
+        if (last != null) {
+            last.next = null;
+        }
+    } else {
+        node.next.prev = node.prev;
+    }
+
+    node.prev = null;
+    node.next = null;
+}
+
+
+This method handles four important situations.
+First
+
+Remove the first node
+
+For A ⇄ B ⇄ C, removing A makes B the new first. B's prev becomes null.
+
+
+
+Middle
+
+Remove a middle node
+
+Removing B connects A directly to C: A ⇄ C.
+
+
+
+Last
+
+Remove the last node
+
+Removing C makes B the new last. B's next becomes null.
+
+
+
+Null
+
+Null node
+
+The method returns immediately without modifying the list.
+
+
+
+Finally:
+node.prev = null;
+node.next = null;
+
+
+Disconnects the removed node from the list.
+
+Important: This implementation assumes that a non-null node belongs to the list and that the list's links are valid. Passing an unrelated node could cause a NullPointerException or corrupt the list.
+D. getFirst() and isEmpty()
+public DoublyLinkedListNode<E> getFirst() {
+    return first;
+}
+
+public boolean isEmpty() {
+    return first == null;
+}
+
+
+- getFirst() returns the first node, which is the LRU node.
+- isEmpty() returns true if the list contains no nodes.
+The eviction policy uses getFirst() to identify which key to remove.
+4. LRUEvictionPolicy<K> — decides which key to evict
+This class implements the EvictionPolicy<K> interface.
+private final DoublyLinkedList<K> dll;
+private final Map<K, DoublyLinkedListNode<K>> mapper;
+
+
+The two fields work together:
+- dll: stores keys in usage order.
+- mapper: maps each key to its corresponding node.
+For example:
+Doubly linked list
+A
+
+B
+
+C
+
+
+
+HashMap (mapper)
+Key	Node reference
+A	Node containing A
+B	Node containing B
+C	Node containing C
+
+The actual HashMap stores references to nodes, not copies of the nodes.
+
+The constructor initializes both structures:
+public LRUEvictionPolicy() {
+    dll = new DoublyLinkedList<>();
+    mapper = new HashMap<>();
+}
+
+
+A. keyAccessed(K key)
+This method records that a key has been accessed and makes it the MRU key.
+@Override
+public void keyAccessed(K key) {
+    if (mapper.containsKey(key)) {
+        DoublyLinkedListNode<K> node = mapper.get(key);
+
+        dll.detachNode(node);
+
+        DoublyLinkedListNode<K> updatedNode =
+            dll.addElementAtLast(key);
+
+        mapper.put(key, updatedNode);
+    } else {
+        DoublyLinkedListNode<K> newNode =
+            dll.addElementAtLast(key);
+
+        mapper.put(key, newNode);
+    }
+}
+
+
+There are two cases.
+
+Case 1: The key already exists
+
+Suppose the list is:
+
+A ⇄ B ⇄ C
+
+Now key B is accessed.
+1. Find B's node using mapper.get(key).
+2. Remove B's node from its current position.
+3. Add B at the end.
+4. Update B's mapping to its new node.
+The resulting order is:
+
+A ⇄ C ⇄ B
+
+B is now the most recently used key.
+
+Case 2: The key is new
+
+Suppose D has never been accessed before.
+1. Create a node for D at the end of the list.
+2. Store the new node reference in the map.
+The order becomes:
+
+A ⇄ C ⇄ B ⇄ D
+
+D is now the MRU key.
+B. evictKey()
+@Override
+public K evictKey() {
+    DoublyLinkedListNode<K> first = dll.getFirst();
+
+    if (first == null) {
+        return null;
+    }
+
+    K keyToEvict = first.element;
+
+    dll.detachNode(first);
+    mapper.remove(keyToEvict);
+
+    return keyToEvict;
+}
+
+
+Step by step:
+1. Get the first node.
+2. If there is no node, return null.
+3. Read the key stored in that node.
+4. Remove the node from the linked list.
+5. Remove its key from the HashMap.
+6. Return the evicted key.
+For example, if the order is A ⇄ C ⇄ B, the method removes and returns A.
+
+Notice that this method only removes the key from the eviction policy's data structures. The Cache class is responsible for removing the actual value from storage.
+5. Cache<K, V> — coordinates everything
+private final EvictionPolicy<K> evictionPolicy;
+private final Storage<K, V> storage;
+
+
+The cache depends on two interfaces:
+- EvictionPolicy<K> determines which key to evict.
+- Storage<K, V> stores and retrieves actual key-value pairs.
+This separation is useful because the storage implementation and eviction algorithm can be changed independently.
+
+For example, you could replace LRU with another eviction policy without rewriting the storage implementation.
+A. Constructor
+public Cache(
+        EvictionPolicy<K> evictionPolicy,
+        Storage<K, V> storage) {
+
+    this.evictionPolicy = evictionPolicy;
+    this.storage = storage;
+}
+
+
+The constructor receives both dependencies and stores them.
+
+This is an example of constructor dependency injection.
+B. put(K key, V value)
+public void put(K key, V value) {
+    try {
+        storage.add(key, value);
+        evictionPolicy.keyAccessed(key);
+
+    } catch (StorageFullException exception) {
+        K keyToRemove = evictionPolicy.evictKey();
+
+        if (keyToRemove == null) {
+            throw new IllegalStateException(
+                "Storage is full but no key can be evicted"
+            );
+        }
+
+        storage.remove(keyToRemove);
+        storage.add(key, value);
+
+        evictionPolicy.keyAccessed(key);
+    }
+}
+
+
+The purpose is to insert a new entry and evict an old entry if storage is full.
+
+Normal path: Storage has enough capacity.
+1. Add the key-value pair to storage.
+2. Update the eviction policy.
+Exception path: Storage is full.
+1. storage.add() throws StorageFullException.
+2. evictKey() selects the least recently used key.
+3. If no key can be evicted, throw IllegalStateException.
+4. Remove the selected key from storage.
+5. Retry adding the new entry.
+6. Record the new key as recently used.
+For instance, if storage contains A, B, and C, inserting D triggers eviction of whichever key is currently least recently used.
+
+One implementation detail to remember: this code assumes storage.add() throws StorageFullException only when the insertion cannot be completed. Also, updating an existing key and handling a failed retry may require additional care in a production implementation.
+C. get(K key)
+public V get(K key) {
+    try {
+        V value = storage.get(key);
+
+        evictionPolicy.keyAccessed(key);
+
+        return value;
+
+    } catch (NotFoundException exception) {
+        return null;
+    }
+}
+
+
+This method retrieves the value for a key.
+
+If the key exists:
+1. Retrieve the value from storage.
+2. Mark the key as recently used.
+3. Return the value.
+If the key does not exist, storage.get() throws NotFoundException, and the cache returns null.
+
+Why update the eviction policy after a read? Because reading a value means it was recently used. Without this update, the cache could evict a frequently accessed key simply because it was inserted earlier.
+6. main() — complete dry run
+The main method creates a cache with capacity 3.
+Storage<String, String> storage =
+    new HashMapBasedStorage<>(3);
+
+EvictionPolicy<String> policy =
+    new LRUEvictionPolicy<>();
+
+Cache<String, String> cache =
+    new Cache<>(policy, storage);
+
+
+- HashMapBasedStorage<>(3) sets the storage capacity to three entries.
+- LRUEvictionPolicy<>() creates the LRU policy.
+- Cache<>(policy, storage) connects the two components.
+Let's follow every operation.
+Cache execution simulator
+Step 1 of 9
+
+Select Next to see how each operation changes the LRU order.
+Operation
+put(A, Apple)
+Return / action
+
+A inserted
+
+The cache is empty.
+
+Current order: LRU → MRU
+A
+Oldest
+
+
+PreviousNext step
+
+The output from your main() method is:
+Apple
+null
+Cherry
+Apple
+Dates
+
+
+Why is get(B) null? Because inserting D when the cache was full caused B to be evicted.
+7. Time complexity
+Operation	Average time complexity
+Add a node at the end	\(O(1)\)
+Detach a known node	\(O(1)\)
+Find a node using the HashMap	\(O(1)\)
+Mark a key as recently used	\(O(1)\) average
+Evict the LRU key	\(O(1)\) average
+Get a cached value	\(O(1)\) average
+
+The linked list and map together use \(O(n)\) space for \(n\) tracked keys.
+8. Design patterns and interview points
+- Strategy pattern: EvictionPolicy allows different eviction algorithms to be plugged into the cache.
+- Factory pattern: A CacheFactory can construct a cache with default storage and eviction policy.
+- Dependency injection: Cache receives its dependencies through its constructor.
+- Generic programming: <K, V> supports different key and value types.
+- Separation of concerns: Storage, eviction logic, linked-list management, and cache coordination are handled by separate classes.
