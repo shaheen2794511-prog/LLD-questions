@@ -1,0 +1,2073 @@
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+
+// ================= ENUMS =================
+
+enum BookType {
+    FICTION, NON_FICTION, REFERENCE, MAGAZINE, JOURNAL
+}
+
+enum BookStatus {
+    AVAILABLE, ISSUED, RESERVED, LOST
+}
+
+enum LoanStatus {
+    ACTIVE, RETURNED
+}
+
+enum ReservationStatus {
+    WAITING, READY_FOR_PICKUP, COMPLETED, CANCELLED
+}
+
+// ================= ADDRESS =================
+
+class Address {
+    private final String street;
+    private final String city;
+    private final String state;
+    private final String country;
+    private final String postalCode;
+
+    public Address(String street, String city, String state,
+                   String country, String postalCode) {
+        this.street = street;
+        this.city = city;
+        this.state = state;
+        this.country = country;
+        this.postalCode = postalCode;
+    }
+
+    public String getCity() {
+        return city;
+    }
+}
+
+// ================= PERSON =================
+
+abstract class Person {
+    private final String id;
+    private final String name;
+    private final String email;
+    private final String phone;
+    private final Address address;
+
+    protected Person(String id, String name, String email,
+                     String phone, Address address) {
+        this.id = Objects.requireNonNull(id);
+        this.name = Objects.requireNonNull(name);
+        this.email = Objects.requireNonNull(email);
+        this.phone = Objects.requireNonNull(phone);
+        this.address = Objects.requireNonNull(address);
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+
+// ================= MEMBER =================
+
+class Member extends Person {
+    private static final int MAX_BOOKS = 5;
+
+    private final String libraryCardBarcode;
+    private final List<BookLoan> loans = new ArrayList<>();
+    private final List<Reservation> reservations =
+            new ArrayList<>();
+
+    public Member(String id, String name, String email,
+                  String phone, Address address,
+                  String libraryCardBarcode) {
+        super(id, name, email, phone, address);
+        this.libraryCardBarcode =
+                Objects.requireNonNull(libraryCardBarcode);
+    }
+
+    public String getLibraryCardBarcode() {
+        return libraryCardBarcode;
+    }
+
+    public List<BookLoan> getLoans() {
+        return Collections.unmodifiableList(loans);
+    }
+
+    public List<Reservation> getReservations() {
+        return Collections.unmodifiableList(reservations);
+    }
+
+    long activeLoanCount() {
+        return loans.stream()
+                .filter(l -> l.getStatus() == LoanStatus.ACTIVE)
+                .count();
+    }
+
+    boolean canBorrow() {
+        return activeLoanCount() < MAX_BOOKS;
+    }
+
+    void addLoan(BookLoan loan) {
+        loans.add(loan);
+    }
+
+    void addReservation(Reservation reservation) {
+        reservations.add(reservation);
+    }
+}
+
+// ================= LIBRARIAN =================
+
+class Librarian extends Person {
+    public Librarian(String id, String name, String email,
+                     String phone, Address address) {
+        super(id, name, email, phone, address);
+    }
+}
+
+// ================= BOOK =================
+
+class Book {
+    private final String isbn;
+    private String title;
+    private List<String> authors;
+    private String subject;
+    private BookType type;
+    private LocalDate publicationDate;
+
+    public Book(String isbn, String title,
+                List<String> authors, String subject,
+                BookType type, LocalDate publicationDate) {
+        this.isbn = Objects.requireNonNull(isbn);
+        this.title = Objects.requireNonNull(title);
+        this.authors = new ArrayList<>(authors);
+        this.subject = subject;
+        this.type = Objects.requireNonNull(type);
+        this.publicationDate =
+                Objects.requireNonNull(publicationDate);
+    }
+
+    public String getIsbn() {
+        return isbn;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public List<String> getAuthors() {
+        return Collections.unmodifiableList(authors);
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public BookType getType() {
+        return type;
+    }
+
+    public LocalDate getPublicationDate() {
+        return publicationDate;
+    }
+
+    public void editDetails(String title, List<String> authors,
+                            String subject, BookType type,
+                            LocalDate publicationDate) {
+        this.title = Objects.requireNonNull(title);
+        this.authors = new ArrayList<>(authors);
+        this.subject = subject;
+        this.type = Objects.requireNonNull(type);
+        this.publicationDate =
+                Objects.requireNonNull(publicationDate);
+    }
+}
+
+// ================= BOOK ITEM =================
+
+class BookItem {
+    private final String barcode;
+    private final Book book;
+    private final String branchId;
+    private BookStatus status = BookStatus.AVAILABLE;
+
+    public BookItem(String barcode, Book book, String branchId) {
+        this.barcode = Objects.requireNonNull(barcode);
+        this.book = Objects.requireNonNull(book);
+        this.branchId = Objects.requireNonNull(branchId);
+    }
+
+    public String getBarcode() {
+        return barcode;
+    }
+
+    public Book getBook() {
+        return book;
+    }
+
+    public BookStatus getStatus() {
+        return status;
+    }
+
+    public String getBranchId() {
+        return branchId;
+    }
+
+    void setStatus(BookStatus status) {
+        this.status = status;
+    }
+}
+
+// ================= CATALOG =================
+
+class Catalog {
+    private final Map<String, BookItem> copies =
+            new LinkedHashMap<>();
+
+    public void addBookItem(BookItem item) {
+        if (copies.containsKey(item.getBarcode())) {
+            throw new IllegalArgumentException(
+                    "Duplicate book barcode");
+        }
+        copies.put(item.getBarcode(), item);
+    }
+
+    public void removeBookItem(String barcode) {
+        BookItem item = findByBarcode(barcode);
+
+        if (item == null) {
+            throw new IllegalArgumentException(
+                    "Book item not found");
+        }
+
+        if (item.getStatus() != BookStatus.AVAILABLE) {
+            throw new IllegalStateException(
+                    "Only available copies can be removed");
+        }
+
+        copies.remove(barcode);
+    }
+
+    public BookItem findByBarcode(String barcode) {
+        return copies.get(barcode);
+    }
+
+    public List<BookItem> getAllCopies() {
+        return new ArrayList<>(copies.values());
+    }
+
+    public List<BookItem> search(String query) {
+        String q = query.toLowerCase(Locale.ROOT);
+        List<BookItem> result = new ArrayList<>();
+
+        for (BookItem item : copies.values()) {
+            Book b = item.getBook();
+
+            boolean matches =
+                    b.getTitle().toLowerCase(Locale.ROOT)
+                            .contains(q)
+                    || b.getIsbn().toLowerCase(Locale.ROOT)
+                            .contains(q)
+                    || b.getSubject().toLowerCase(Locale.ROOT)
+                            .contains(q)
+                    || b.getAuthors().stream().anyMatch(
+                            a -> a.toLowerCase(Locale.ROOT)
+                                    .contains(q))
+                    || b.getPublicationDate().toString()
+                            .contains(q);
+
+            if (matches) {
+                result.add(item);
+            }
+        }
+
+        return result;
+    }
+}
+
+// ================= BOOK LOAN =================
+
+class BookLoan {
+    private final String id;
+    private final Member member;
+    private final BookItem bookItem;
+    private final LocalDate issueDate;
+
+    private LocalDate dueDate;
+    private LocalDate returnDate;
+    private LoanStatus status = LoanStatus.ACTIVE;
+    private int renewalCount = 0;
+
+    public BookLoan(String id, Member member, BookItem item,
+                    LocalDate issueDate, LocalDate dueDate) {
+        this.id = id;
+        this.member = member;
+        this.bookItem = item;
+        this.issueDate = issueDate;
+        this.dueDate = dueDate;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public Member getMember() {
+        return member;
+    }
+
+    public BookItem getBookItem() {
+        return bookItem;
+    }
+
+    public LocalDate getDueDate() {
+        return dueDate;
+    }
+
+    public LoanStatus getStatus() {
+        return status;
+    }
+
+    public int getRenewalCount() {
+        return renewalCount;
+    }
+
+    void renew() {
+        dueDate = dueDate.plusDays(10);
+        renewalCount++;
+    }
+
+    void markReturned(LocalDate date) {
+        returnDate = date;
+        status = LoanStatus.RETURNED;
+    }
+}
+
+// ================= RESERVATION =================
+
+class Reservation {
+    private final String id;
+    private final Member member;
+    private final Book book;
+    private final LocalDate reservationDate;
+
+    private ReservationStatus status =
+            ReservationStatus.WAITING;
+
+    public Reservation(String id, Member member, Book book,
+                       LocalDate reservationDate) {
+        this.id = id;
+        this.member = member;
+        this.book = book;
+        this.reservationDate = reservationDate;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public Member getMember() {
+        return member;
+    }
+
+    public Book getBook() {
+        return book;
+    }
+
+    public ReservationStatus getStatus() {
+        return status;
+    }
+
+    void setStatus(ReservationStatus status) {
+        this.status = status;
+    }
+}
+
+// ================= FINE STRATEGY =================
+
+interface FineCalculator {
+    double calculate(BookLoan loan, LocalDate date);
+}
+
+class DailyFineCalculator implements FineCalculator {
+    private final double dailyRate;
+
+    public DailyFineCalculator(double dailyRate) {
+        if (dailyRate < 0) {
+            throw new IllegalArgumentException(
+                    "Invalid fine rate");
+        }
+        this.dailyRate = dailyRate;
+    }
+
+    @Override
+    public double calculate(BookLoan loan, LocalDate date) {
+        long days = ChronoUnit.DAYS.between(
+                loan.getDueDate(), date);
+
+        return Math.max(0, days) * dailyRate;
+    }
+}
+
+// ================= NOTIFICATIONS =================
+
+interface NotificationService {
+    void send(String recipient, String message);
+}
+
+class EmailNotificationService implements NotificationService {
+    @Override
+    public void send(String recipient, String message) {
+        // Demo implementation. Replace with an email provider.
+        System.out.println(
+                "Email to " + recipient + ": " + message);
+    }
+}
+
+// ================= LIBRARY SERVICE =================
+
+class LibraryService {
+    private static final int MAX_LOAN_DAYS = 10;
+
+    private final Catalog catalog;
+    private final FineCalculator fineCalculator;
+    private final NotificationService notifier;
+
+    private final Map<String, Member> members = new HashMap<>();
+    private final Map<String, BookLoan> loans = new HashMap<>();
+
+    private final Map<String, Queue<Reservation>> reservations =
+            new HashMap<>();
+
+    private int nextId = 1;
+
+    public LibraryService(Catalog catalog,
+                          FineCalculator fineCalculator,
+                          NotificationService notifier) {
+        this.catalog = catalog;
+        this.fineCalculator = fineCalculator;
+        this.notifier = notifier;
+    }
+
+    public void registerMember(Member member) {
+        if (members.putIfAbsent(member.getId(), member) != null) {
+            throw new IllegalArgumentException(
+                    "Member already registered");
+        }
+
+        for (Member existing : members.values()) {
+            if (existing != member
+                    && existing.getLibraryCardBarcode()
+                    .equals(member.getLibraryCardBarcode())) {
+                members.remove(member.getId());
+                throw new IllegalArgumentException(
+                        "Duplicate library card barcode");
+            }
+        }
+    }
+
+    // Barcode scanning identifies both member and copy.
+    public void issueBook(String cardBarcode, String bookBarcode,
+                          LocalDate issueDate, int loanDays) {
+        Member member = members.values().stream()
+                .filter(m -> m.getLibraryCardBarcode()
+                        .equals(cardBarcode))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Library card not found"));
+
+        BookItem item = catalog.findByBarcode(bookBarcode);
+
+        if (item == null) {
+            throw new IllegalArgumentException(
+                    "Book barcode not found");
+        }
+
+        if (item.getStatus() != BookStatus.AVAILABLE) {
+            throw new IllegalStateException(
+                    "Book is not available");
+        }
+
+        if (!member.canBorrow()) {
+            throw new IllegalStateException(
+                    "Maximum five active loans allowed");
+        }
+
+        if (loanDays <= 0 || loanDays > MAX_LOAN_DAYS) {
+            throw new IllegalArgumentException(
+                    "Loan period must be 1 to 10 days");
+        }
+
+        // Do not bypass the waiting queue.
+        Queue<Reservation> queue =
+                reservations.get(item.getBook().getIsbn());
+
+        if (queue != null && queue.stream().anyMatch(
+                r -> r.getStatus() == ReservationStatus.WAITING
+                        || r.getStatus()
+                        == ReservationStatus.READY_FOR_PICKUP)) {
+            throw new IllegalStateException(
+                    "A reservation has priority");
+        }
+
+        BookLoan loan = new BookLoan(
+                "LOAN-" + nextId++,
+                member, item, issueDate,
+                issueDate.plusDays(loanDays));
+
+        item.setStatus(BookStatus.ISSUED);
+        member.addLoan(loan);
+        loans.put(loan.getId(), loan);
+    }
+
+    public double returnBook(String loanId, LocalDate returnDate) {
+        BookLoan loan = loans.get(loanId);
+
+        if (loan == null || loan.getStatus() != LoanStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Active loan not found");
+        }
+
+        double fine = fineCalculator.calculate(loan, returnDate);
+
+        loan.markReturned(returnDate);
+
+        BookItem item = loan.getBookItem();
+        item.setStatus(BookStatus.AVAILABLE);
+
+        notifier.send(loan.getMember().getEmail(),
+                "Book returned: "
+                        + item.getBook().getTitle()
+                        + ". Fine: Rs. " + fine);
+
+        makeNextReservationReady(item.getBook());
+
+        return fine;
+    }
+
+    public void renewBook(String loanId, LocalDate today) {
+        BookLoan loan = loans.get(loanId);
+
+        if (loan == null || loan.getStatus() != LoanStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Active loan not found");
+        }
+
+        if (today.isAfter(loan.getDueDate())) {
+            throw new IllegalStateException(
+                    "Overdue book cannot be renewed");
+        }
+
+        Queue<Reservation> queue =
+                reservations.get(loan.getBookItem()
+                        .getBook().getIsbn());
+
+        if (queue != null && queue.stream().anyMatch(
+                r -> r.getStatus() == ReservationStatus.WAITING
+                        || r.getStatus()
+                        == ReservationStatus.READY_FOR_PICKUP)) {
+            throw new IllegalStateException(
+                    "Book is reserved by another member");
+        }
+
+        loan.renew();
+
+        notifier.send(loan.getMember().getEmail(),
+                "Book renewed. New due date: "
+                        + loan.getDueDate());
+    }
+
+    public Reservation reserveBook(String memberId, String isbn,
+                                   LocalDate date) {
+        Member member = members.get(memberId);
+
+        if (member == null) {
+            throw new IllegalArgumentException(
+                    "Member not found");
+        }
+
+        Book book = catalog.getAllCopies().stream()
+                .map(BookItem::getBook)
+                .filter(b -> b.getIsbn().equals(isbn))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Book not found"));
+
+        boolean available = catalog.getAllCopies().stream()
+                .anyMatch(i -> i.getBook().getIsbn().equals(isbn)
+                        && i.getStatus() == BookStatus.AVAILABLE);
+
+        if (available) {
+            throw new IllegalStateException(
+                    "Reserve only when no copy is available");
+        }
+
+        Reservation reservation = new Reservation(
+                "RES-" + nextId++, member, book, date);
+
+        reservations.computeIfAbsent(isbn,
+                k -> new LinkedList<>()).offer(reservation);
+
+        member.addReservation(reservation);
+
+        return reservation;
+    }
+
+    private void makeNextReservationReady(Book book) {
+        Queue<Reservation> queue =
+                reservations.get(book.getIsbn());
+
+        if (queue == null) {
+            return;
+        }
+
+        boolean readyExists = queue.stream().anyMatch(
+                r -> r.getStatus()
+                        == ReservationStatus.READY_FOR_PICKUP);
+
+        if (readyExists) {
+            return;
+        }
+
+        Reservation next = queue.stream()
+                .filter(r -> r.getStatus()
+                        == ReservationStatus.WAITING)
+                .findFirst()
+                .orElse(null);
+
+        if (next == null) {
+            return;
+        }
+
+        BookItem availableCopy = catalog.getAllCopies().stream()
+                .filter(i -> i.getBook().getIsbn()
+                        .equals(book.getIsbn()))
+                .filter(i -> i.getStatus()
+                        == BookStatus.AVAILABLE)
+                .findFirst()
+                .orElse(null);
+
+        if (availableCopy != null) {
+            availableCopy.setStatus(BookStatus.RESERVED);
+            next.setStatus(
+                    ReservationStatus.READY_FOR_PICKUP);
+
+            notifier.send(next.getMember().getEmail(),
+                    "Your reserved book is ready: "
+                            + book.getTitle());
+        }
+    }
+
+    public void checkOverdueBooks(LocalDate today) {
+        for (BookLoan loan : loans.values()) {
+            if (loan.getStatus() == LoanStatus.ACTIVE
+                    && today.isAfter(loan.getDueDate())) {
+                notifier.send(loan.getMember().getEmail(),
+                        "Overdue book: "
+                                + loan.getBookItem().getBook()
+                                .getTitle()
+                                + ". Due date: "
+                                + loan.getDueDate());
+            }
+        }
+    }
+
+    public List<BookLoan> getMemberLoans(String memberId) {
+        Member member = members.get(memberId);
+
+        if (member == null) {
+            throw new IllegalArgumentException(
+                    "Member not found");
+        }
+
+        return member.getLoans();
+    }
+}
+
+// ================= LIBRARY =================
+
+class Library {
+    private final String name;
+    private final Address address;
+    private final Catalog catalog;
+    private final LibraryService service;
+
+    public Library(String name, Address address, Catalog catalog,
+                   LibraryService service) {
+        this.name = name;
+        this.address = address;
+        this.catalog = catalog;
+        this.service = service;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Catalog getCatalog() {
+        return
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+
+// ================= ENUMS =================
+
+enum BookType {
+    FICTION, NON_FICTION, REFERENCE, MAGAZINE, JOURNAL
+}
+
+enum BookStatus {
+    AVAILABLE, ISSUED, RESERVED, LOST
+}
+
+enum LoanStatus {
+    ACTIVE, RETURNED
+}
+
+enum ReservationStatus {
+    WAITING, READY_FOR_PICKUP, COMPLETED, CANCELLED
+}
+
+// ================= ADDRESS =================
+
+class Address {
+    private final String street;
+    private final String city;
+    private final String state;
+    private final String country;
+    private final String postalCode;
+
+    public Address(String street, String city, String state,
+                   String country, String postalCode) {
+        this.street = street;
+        this.city = city;
+        this.state = state;
+        this.country = country;
+        this.postalCode = postalCode;
+    }
+
+    public String getCity() {
+        return city;
+    }
+}
+
+// ================= PERSON =================
+
+abstract class Person {
+    private final String id;
+    private final String name;
+    private final String email;
+    private final String phone;
+    private final Address address;
+
+    protected Person(String id, String name, String email,
+                     String phone, Address address) {
+        this.id = Objects.requireNonNull(id);
+        this.name = Objects.requireNonNull(name);
+        this.email = Objects.requireNonNull(email);
+        this.phone = Objects.requireNonNull(phone);
+        this.address = Objects.requireNonNull(address);
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+
+// ================= MEMBER =================
+
+class Member extends Person {
+    private static final int MAX_BOOKS = 5;
+
+    private final String libraryCardBarcode;
+    private final List<BookLoan> loans = new ArrayList<>();
+    private final List<Reservation> reservations =
+            new ArrayList<>();
+
+    public Member(String id, String name, String email,
+                  String phone, Address address,
+                  String libraryCardBarcode) {
+        super(id, name, email, phone, address);
+        this.libraryCardBarcode =
+                Objects.requireNonNull(libraryCardBarcode);
+    }
+
+    public String getLibraryCardBarcode() {
+        return libraryCardBarcode;
+    }
+
+    public List<BookLoan> getLoans() {
+        return Collections.unmodifiableList(loans);
+    }
+
+    public List<Reservation> getReservations() {
+        return Collections.unmodifiableList(reservations);
+    }
+
+    long activeLoanCount() {
+        return loans.stream()
+                .filter(l -> l.getStatus() == LoanStatus.ACTIVE)
+                .count();
+    }
+
+    boolean canBorrow() {
+        return activeLoanCount() < MAX_BOOKS;
+    }
+
+    void addLoan(BookLoan loan) {
+        loans.add(loan);
+    }
+
+    void addReservation(Reservation reservation) {
+        reservations.add(reservation);
+    }
+}
+
+// ================= LIBRARIAN =================
+
+class Librarian extends Person {
+    public Librarian(String id, String name, String email,
+                     String phone, Address address) {
+        super(id, name, email, phone, address);
+    }
+}
+
+// ================= BOOK =================
+
+class Book {
+    private final String isbn;
+    private String title;
+    private List<String> authors;
+    private String subject;
+    private BookType type;
+    private LocalDate publicationDate;
+
+    public Book(String isbn, String title,
+                List<String> authors, String subject,
+                BookType type, LocalDate publicationDate) {
+        this.isbn = Objects.requireNonNull(isbn);
+        this.title = Objects.requireNonNull(title);
+        this.authors = new ArrayList<>(authors);
+        this.subject = subject;
+        this.type = Objects.requireNonNull(type);
+        this.publicationDate =
+                Objects.requireNonNull(publicationDate);
+    }
+
+    public String getIsbn() {
+        return isbn;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public List<String> getAuthors() {
+        return Collections.unmodifiableList(authors);
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public BookType getType() {
+        return type;
+    }
+
+    public LocalDate getPublicationDate() {
+        return publicationDate;
+    }
+
+    public void editDetails(String title, List<String> authors,
+                            String subject, BookType type,
+                            LocalDate publicationDate) {
+        this.title = Objects.requireNonNull(title);
+        this.authors = new ArrayList<>(authors);
+        this.subject = subject;
+        this.type = Objects.requireNonNull(type);
+        this.publicationDate =
+                Objects.requireNonNull(publicationDate);
+    }
+}
+
+// ================= BOOK ITEM =================
+
+class BookItem {
+    private final String barcode;
+    private final Book book;
+    private final String branchId;
+    private BookStatus status = BookStatus.AVAILABLE;
+
+    public BookItem(String barcode, Book book, String branchId) {
+        this.barcode = Objects.requireNonNull(barcode);
+        this.book = Objects.requireNonNull(book);
+        this.branchId = Objects.requireNonNull(branchId);
+    }
+
+    public String getBarcode() {
+        return barcode;
+    }
+
+    public Book getBook() {
+        return book;
+    }
+
+    public BookStatus getStatus() {
+        return status;
+    }
+
+    public String getBranchId() {
+        return branchId;
+    }
+
+    void setStatus(BookStatus status) {
+        this.status = status;
+    }
+}
+
+// ================= CATALOG =================
+
+class Catalog {
+    private final Map<String, BookItem> copies =
+            new LinkedHashMap<>();
+
+    public void addBookItem(BookItem item) {
+        if (copies.containsKey(item.getBarcode())) {
+            throw new IllegalArgumentException(
+                    "Duplicate book barcode");
+        }
+        copies.put(item.getBarcode(), item);
+    }
+
+    public void removeBookItem(String barcode) {
+        BookItem item = findByBarcode(barcode);
+
+        if (item == null) {
+            throw new IllegalArgumentException(
+                    "Book item not found");
+        }
+
+        if (item.getStatus() != BookStatus.AVAILABLE) {
+            throw new IllegalStateException(
+                    "Only available copies can be removed");
+        }
+
+        copies.remove(barcode);
+    }
+
+    public BookItem findByBarcode(String barcode) {
+        return copies.get(barcode);
+    }
+
+    public List<BookItem> getAllCopies() {
+        return new ArrayList<>(copies.values());
+    }
+
+    public List<BookItem> search(String query) {
+        String q = query.toLowerCase(Locale.ROOT);
+        List<BookItem> result = new ArrayList<>();
+
+        for (BookItem item : copies.values()) {
+            Book b = item.getBook();
+
+            boolean matches =
+                    b.getTitle().toLowerCase(Locale.ROOT)
+                            .contains(q)
+                    || b.getIsbn().toLowerCase(Locale.ROOT)
+                            .contains(q)
+                    || b.getSubject().toLowerCase(Locale.ROOT)
+                            .contains(q)
+                    || b.getAuthors().stream().anyMatch(
+                            a -> a.toLowerCase(Locale.ROOT)
+                                    .contains(q))
+                    || b.getPublicationDate().toString()
+                            .contains(q);
+
+            if (matches) {
+                result.add(item);
+            }
+        }
+
+        return result;
+    }
+}
+
+// ================= BOOK LOAN =================
+
+class BookLoan {
+    private final String id;
+    private final Member member;
+    private final BookItem bookItem;
+    private final LocalDate issueDate;
+
+    private LocalDate dueDate;
+    private LocalDate returnDate;
+    private LoanStatus status = LoanStatus.ACTIVE;
+    private int renewalCount = 0;
+
+    public BookLoan(String id, Member member, BookItem item,
+                    LocalDate issueDate, LocalDate dueDate) {
+        this.id = id;
+        this.member = member;
+        this.bookItem = item;
+        this.issueDate = issueDate;
+        this.dueDate = dueDate;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public Member getMember() {
+        return member;
+    }
+
+    public BookItem getBookItem() {
+        return bookItem;
+    }
+
+    public LocalDate getDueDate() {
+        return dueDate;
+    }
+
+    public LoanStatus getStatus() {
+        return status;
+    }
+
+    public int getRenewalCount() {
+        return renewalCount;
+    }
+
+    void renew() {
+        dueDate = dueDate.plusDays(10);
+        renewalCount++;
+    }
+
+    void markReturned(LocalDate date) {
+        returnDate = date;
+        status = LoanStatus.RETURNED;
+    }
+}
+
+// ================= RESERVATION =================
+
+class Reservation {
+    private final String id;
+    private final Member member;
+    private final Book book;
+    private final LocalDate reservationDate;
+
+    private ReservationStatus status =
+            ReservationStatus.WAITING;
+
+    public Reservation(String id, Member member, Book book,
+                       LocalDate reservationDate) {
+        this.id = id;
+        this.member = member;
+        this.book = book;
+        this.reservationDate = reservationDate;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public Member getMember() {
+        return member;
+    }
+
+    public Book getBook() {
+        return book;
+    }
+
+    public ReservationStatus getStatus() {
+        return status;
+    }
+
+    void setStatus(ReservationStatus status) {
+        this.status = status;
+    }
+}
+
+// ================= FINE STRATEGY =================
+
+interface FineCalculator {
+    double calculate(BookLoan loan, LocalDate date);
+}
+
+class DailyFineCalculator implements FineCalculator {
+    private final double dailyRate;
+
+    public DailyFineCalculator(double dailyRate) {
+        if (dailyRate < 0) {
+            throw new IllegalArgumentException(
+                    "Invalid fine rate");
+        }
+        this.dailyRate = dailyRate;
+    }
+
+    @Override
+    public double calculate(BookLoan loan, LocalDate date) {
+        long days = ChronoUnit.DAYS.between(
+                loan.getDueDate(), date);
+
+        return Math.max(0, days) * dailyRate;
+    }
+}
+
+// ================= NOTIFICATIONS =================
+
+interface NotificationService {
+    void send(String recipient, String message);
+}
+
+class EmailNotificationService implements NotificationService {
+    @Override
+    public void send(String recipient, String message) {
+        // Demo implementation. Replace with an email provider.
+        System.out.println(
+                "Email to " + recipient + ": " + message);
+    }
+}
+
+// ================= LIBRARY SERVICE =================
+
+class LibraryService {
+    private static final int MAX_LOAN_DAYS = 10;
+
+    private final Catalog catalog;
+    private final FineCalculator fineCalculator;
+    private final NotificationService notifier;
+
+    private final Map<String, Member> members = new HashMap<>();
+    private final Map<String, BookLoan> loans = new HashMap<>();
+
+    private final Map<String, Queue<Reservation>> reservations =
+            new HashMap<>();
+
+    private int nextId = 1;
+
+    public LibraryService(Catalog catalog,
+                          FineCalculator fineCalculator,
+                          NotificationService notifier) {
+        this.catalog = catalog;
+        this.fineCalculator = fineCalculator;
+        this.notifier = notifier;
+    }
+
+    public void registerMember(Member member) {
+        if (members.putIfAbsent(member.getId(), member) != null) {
+            throw new IllegalArgumentException(
+                    "Member already registered");
+        }
+
+        for (Member existing : members.values()) {
+            if (existing != member
+                    && existing.getLibraryCardBarcode()
+                    .equals(member.getLibraryCardBarcode())) {
+                members.remove(member.getId());
+                throw new IllegalArgumentException(
+                        "Duplicate library card barcode");
+            }
+        }
+    }
+
+    // Barcode scanning identifies both member and copy.
+    public void issueBook(String cardBarcode, String bookBarcode,
+                          LocalDate issueDate, int loanDays) {
+        Member member = members.values().stream()
+                .filter(m -> m.getLibraryCardBarcode()
+                        .equals(cardBarcode))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Library card not found"));
+
+        BookItem item = catalog.findByBarcode(bookBarcode);
+
+        if (item == null) {
+            throw new IllegalArgumentException(
+                    "Book barcode not found");
+        }
+
+        if (item.getStatus() != BookStatus.AVAILABLE) {
+            throw new IllegalStateException(
+                    "Book is not available");
+        }
+
+        if (!member.canBorrow()) {
+            throw new IllegalStateException(
+                    "Maximum five active loans allowed");
+        }
+
+        if (loanDays <= 0 || loanDays > MAX_LOAN_DAYS) {
+            throw new IllegalArgumentException(
+                    "Loan period must be 1 to 10 days");
+        }
+
+        // Do not bypass the waiting queue.
+        Queue<Reservation> queue =
+                reservations.get(item.getBook().getIsbn());
+
+        if (queue != null && queue.stream().anyMatch(
+                r -> r.getStatus() == ReservationStatus.WAITING
+                        || r.getStatus()
+                        == ReservationStatus.READY_FOR_PICKUP)) {
+            throw new IllegalStateException(
+                    "A reservation has priority");
+        }
+
+        BookLoan loan = new BookLoan(
+                "LOAN-" + nextId++,
+                member, item, issueDate,
+                issueDate.plusDays(loanDays));
+
+        item.setStatus(BookStatus.ISSUED);
+        member.addLoan(loan);
+        loans.put(loan.getId(), loan);
+    }
+
+    public double returnBook(String loanId, LocalDate returnDate) {
+        BookLoan loan = loans.get(loanId);
+
+        if (loan == null || loan.getStatus() != LoanStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Active loan not found");
+        }
+
+        double fine = fineCalculator.calculate(loan, returnDate);
+
+        loan.markReturned(returnDate);
+
+        BookItem item = loan.getBookItem();
+        item.setStatus(BookStatus.AVAILABLE);
+
+        notifier.send(loan.getMember().getEmail(),
+                "Book returned: "
+                        + item.getBook().getTitle()
+                        + ". Fine: Rs. " + fine);
+
+        makeNextReservationReady(item.getBook());
+
+        return fine;
+    }
+
+    public void renewBook(String loanId, LocalDate today) {
+        BookLoan loan = loans.get(loanId);
+
+        if (loan == null || loan.getStatus() != LoanStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Active loan not found");
+        }
+
+        if (today.isAfter(loan.getDueDate())) {
+            throw new IllegalStateException(
+                    "Overdue book cannot be renewed");
+        }
+
+        Queue<Reservation> queue =
+                reservations.get(loan.getBookItem()
+                        .getBook().getIsbn());
+
+        if (queue != null && queue.stream().anyMatch(
+                r -> r.getStatus() == ReservationStatus.WAITING
+                        || r.getStatus()
+                        == ReservationStatus.READY_FOR_PICKUP)) {
+            throw new IllegalStateException(
+                    "Book is reserved by another member");
+        }
+
+        loan.renew();
+
+        notifier.send(loan.getMember().getEmail(),
+                "Book renewed. New due date: "
+                        + loan.getDueDate());
+    }
+
+    public Reservation reserveBook(String memberId, String isbn,
+                                   LocalDate date) {
+        Member member = members.get(memberId);
+
+        if (member == null) {
+            throw new IllegalArgumentException(
+                    "Member not found");
+        }
+
+        Book book = catalog.getAllCopies().stream()
+                .map(BookItem::getBook)
+                .filter(b -> b.getIsbn().equals(isbn))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Book not found"));
+
+        boolean available = catalog.getAllCopies().stream()
+                .anyMatch(i -> i.getBook().getIsbn().equals(isbn)
+                        && i.getStatus() == BookStatus.AVAILABLE);
+
+        if (available) {
+            throw new IllegalStateException(
+                    "Reserve only when no copy is available");
+        }
+
+        Reservation reservation = new Reservation(
+                "RES-" + nextId++, member, book, date);
+
+        reservations.computeIfAbsent(isbn,
+                k -> new LinkedList<>()).offer(reservation);
+
+        member.addReservation(reservation);
+
+        return reservation;
+    }
+
+    private void makeNextReservationReady(Book book) {
+        Queue<Reservation> queue =
+                reservations.get(book.getIsbn());
+
+        if (queue == null) {
+            return;
+        }
+
+        boolean readyExists = queue.stream().anyMatch(
+                r -> r.getStatus()
+                        == ReservationStatus.READY_FOR_PICKUP);
+
+        if (readyExists) {
+            return;
+        }
+
+        Reservation next = queue.stream()
+                .filter(r -> r.getStatus()
+                        == ReservationStatus.WAITING)
+                .findFirst()
+                .orElse(null);
+
+        if (next == null) {
+            return;
+        }
+
+        BookItem availableCopy = catalog.getAllCopies().stream()
+                .filter(i -> i.getBook().getIsbn()
+                        .equals(book.getIsbn()))
+                .filter(i -> i.getStatus()
+                        == BookStatus.AVAILABLE)
+                .findFirst()
+                .orElse(null);
+
+        if (availableCopy != null) {
+            availableCopy.setStatus(BookStatus.RESERVED);
+            next.setStatus(
+                    ReservationStatus.READY_FOR_PICKUP);
+
+            notifier.send(next.getMember().getEmail(),
+                    "Your reserved book is ready: "
+                            + book.getTitle());
+        }
+    }
+
+    public void checkOverdueBooks(LocalDate today) {
+        for (BookLoan loan : loans.values()) {
+            if (loan.getStatus() == LoanStatus.ACTIVE
+                    && today.isAfter(loan.getDueDate())) {
+                notifier.send(loan.getMember().getEmail(),
+                        "Overdue book: "
+                                + loan.getBookItem().getBook()
+                                .getTitle()
+                                + ". Due date: "
+                                + loan.getDueDate());
+            }
+        }
+    }
+
+    public List<BookLoan> getMemberLoans(String memberId) {
+        Member member = members.get(memberId);
+
+        if (member == null) {
+            throw new IllegalArgumentException(
+                    "Member not found");
+        }
+
+        return member.getLoans();
+    }
+}
+
+// ================= LIBRARY =================
+
+class Library {
+    private final String name;
+    private final Address address;
+    private final Catalog catalog;
+    private final LibraryService service;
+
+    public Library(String name, Address address, Catalog catalog,
+                   LibraryService service) {
+        this.name = name;
+        this.address = address;
+        this.catalog = catalog;
+        this.service = service;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Catalog getCatalog() {
+        return catalog;
+    }
+
+    public LibraryService getService() {
+        return service;
+    }
+}
+
+// ================= MAIN =================
+
+public class LibraryManagementSystem {
+    public static void main(String[] args) {
+        Address address = new Address(
+                "Main Street", "Delhi", "Delhi",
+                "India", "110001");
+
+        Catalog catalog = new Catalog();
+
+        Book book = new Book(
+                "ISBN-101", "Clean Code",
+                Arrays.asList("Robert C. Martin"),
+                "Software Engineering",
+                BookType.NON_FICTION,
+                LocalDate.of(2008, 8, 1));
+
+        catalog.addBookItem(
+                new BookItem("BOOK-101", book, "BR-01"));
+
+        LibraryService service = new LibraryService(
+                catalog,
+                new DailyFineCalculator(5.0),
+                new EmailNotificationService());
+
+        Library library = new Library(
+                "Central Library", address, catalog, service);
+
+        Member member = new Member(
+                "M-101", "Aman", "aman@example.com",
+                "9876543210", address, "CARD-101");
+
+        service.registerMember(member);
+
+        System.out.println("Library: " + library.getName());
+
+        System.out.println(
+                "Search results: "
+                        + catalog.search("Clean Code").size());
+
+        service.issueBook(
+                "CARD-101", "BOOK-101",
+                LocalDate.of(2026, 10, 1), 10);
+
+        BookLoan loan = member.getLoans().get(0);
+
+        System.out.println("Issued: "
+                + loan.getBookItem().getBook().getTitle());
+
+        service.renewBook(
+                loan.getId(), LocalDate.of(2026, 10, 5));
+
+        System.out.println("New due date: " + loan.getDueDate());
+
+        double fine = service.returnBook(
+                loan.getId(), LocalDate.of(2026, 10, 25));
+
+        System.out.println("Fine: Rs. " + fine);
+    }
+}
+Explain this code
+
+Library Management System LLD — Complete Code Explanation
+Let's understand your code class by class, method by method, with examples and execution flow, so you can explain it confidently in an LLD interview.
+
+First, one important point: the code you pasted contains the Java program twice, and the second copy is cut off. Keep only one copy of the code and ensure the file ends with the complete main() method.
+1. Overall architecture
+Your application is divided into four layers of responsibility.
+Main / Client
+
+Creates objects and invokes operations
+
+LibraryService
+
+Issue, return, renew, reserve, overdue checks
+
+Catalog
+
+Books and searching
+
+
+Domain classes
+
+Member, BookLoan, Reservation
+
+
+FineCalculator
+
+Fine calculation
+
+
+NotificationService
+
+Email notifications
+
+
+
+
+The idea is that LibraryService coordinates operations, while other classes handle specific responsibilities. This avoids putting all the business logic into one enormous class.
+2. Enums — predefined values
+Your code defines four enums.
+BookType
+enum BookType {
+    FICTION, NON_FICTION, REFERENCE, MAGAZINE, JOURNAL
+}
+
+
+Defines the category of a publication.
+
+For example:
+BookType type = BookType.NON_FICTION;
+
+
+Using an enum prevents arbitrary values such as "nonfiction", "Non Fiction" and "NON_FICTION" from being treated as different categories.
+BookStatus
+enum BookStatus {
+    AVAILABLE, ISSUED, RESERVED, LOST
+}
+
+
+Represents the current state of an individual physical copy.
+- AVAILABLE: can be issued.
+- ISSUED: currently borrowed.
+- RESERVED: allocated to a reservation.
+- LOST: reported lost.
+LoanStatus
+ACTIVE means the loan has not been returned; RETURNED means it has been returned.
+ReservationStatus
+WAITING, READY_FOR_PICKUP, COMPLETED and CANCELLED represent the reservation lifecycle.
+
+Interview point: An enum models a fixed set of valid states and makes business rules easier to enforce.
+3. Address class
+class Address {
+    private final String street;
+    private final String city;
+    private final String state;
+    private final String country;
+    private final String postalCode;
+}
+
+
+This class represents an address independently of a person.
+
+For example:
+Address address = new Address(
+    "Main Street", "Delhi", "Delhi",
+    "India", "110001"
+);
+
+
+Why create a separate class instead of putting all address fields directly inside Member and Librarian?
+
+Because both can reuse the same address structure. This is composition: a person has an address.
+
+The fields are final, so they cannot be reassigned after construction. The current implementation only exposes getCity(); additional getters can be added if needed.
+4. Person, Member and Librarian
+Person — the abstract parent
+abstract class Person {
+    private final String id;
+    private final String name;
+    private final String email;
+    private final String phone;
+    private final Address address;
+}
+
+
+Both members and librarians share these attributes.
+
+The abstract keyword means you do not create a generic Person directly. Instead, you create a specific type of person.
+Member — a library customer
+class Member extends Person {
+    private static final int MAX_BOOKS = 5;
+}
+
+
+extends Person means Member inherits the common identity and contact information.
+
+The member also stores:
+- libraryCardBarcode: identifies the member's library card.
+- loans: tracks borrowing history.
+- reservations: tracks reservations made by the member.
+The key borrowing rule is:
+long activeLoanCount() {
+    return loans.stream()
+        .filter(l -> l.getStatus() == LoanStatus.ACTIVE)
+        .count();
+}
+
+boolean canBorrow() {
+    return activeLoanCount() < MAX_BOOKS;
+}
+
+
+Suppose a member has borrowed four books and returned one previously. Only active loans count, so the member can borrow one more book.
+
+The getLoans() method returns an unmodifiable list. This prevents callers from adding or removing loans directly through the returned list.
+Librarian
+class Librarian extends Person {
+    // Constructor
+}
+
+
+A librarian inherits common person attributes. In the current code, librarian-specific actions have not yet been connected to the class; the catalog operations are called directly.
+
+OOP concepts demonstrated: inheritance, abstraction, encapsulation and composition.
+5. Book class — publication details
+class Book {
+    private final String isbn;
+    private String title;
+    private List<String> authors;
+    private String subject;
+    private BookType type;
+    private LocalDate publicationDate;
+}
+
+
+This class represents the publication, not an individual copy.
+
+For example, Clean Code may have three physical copies. All three copies refer to the same Book object.
+Constructor
+public Book(String isbn, String title,
+            List<String> authors, String subject,
+            BookType type, LocalDate publicationDate) {
+    this.isbn = Objects.requireNonNull(isbn);
+    this.title = Objects.requireNonNull(title);
+    this.authors = new ArrayList<>(authors);
+    this.subject = subject;
+    this.type = Objects.requireNonNull(type);
+    this.publicationDate =
+            Objects.requireNonNull(publicationDate);
+}
+
+
+The constructor initializes the book's data. new ArrayList<>(authors) creates a separate list so that modifying the original list passed into the constructor does not directly change the book's authors.
+editDetails()
+public void editDetails(String title, List<String> authors,
+                        String subject, BookType type,
+                        LocalDate publicationDate)
+
+
+This method updates the book's publication details.
+
+The ISBN remains unchanged because it is declared final. That makes sense when treating ISBN as the publication's identity.
+
+Interview question: Why do we need both Book and BookItem?
+
+Because one publication can have multiple physical copies, and each copy needs its own barcode and availability status.
+6. BookItem — one physical copy
+class BookItem {
+    private final String barcode;
+    private final Book book;
+    private final String branchId;
+    private BookStatus status = BookStatus.AVAILABLE;
+}
+
+
+Suppose the catalog contains these copies:
+Barcode	Book	Status
+BOOK-101	Clean Code	ISSUED
+BOOK-102	Clean Code	AVAILABLE
+BOOK-103	Clean Code	AVAILABLE
+
+The Book object is shared, but each BookItem has its own status.
+void setStatus(BookStatus status) {
+    this.status = status;
+}
+
+
+The service uses this method to change a copy's state during issuing, returning and reserving.
+
+In a stronger design, this method could validate allowed state transitions rather than accepting any status change.
+7. Catalog — storage and search
+private final Map<String, BookItem> copies =
+        new LinkedHashMap<>();
+
+
+This map stores physical copies using their barcode as the key.
+
+For example:
+BOOK-101 → BookItem
+BOOK-102 → BookItem
+BOOK-103 → BookItem
+
+
+A map makes barcode lookup efficient on average: approximately \(O(1)\) for lookup, insertion and removal.
+Add a copy
+public void addBookItem(BookItem item) {
+    if (copies.containsKey(item.getBarcode())) {
+        throw new IllegalArgumentException(
+                "Duplicate book barcode");
+    }
+    copies.put(item.getBarcode(), item);
+}
+
+
+This prevents two copies from having the same barcode in the catalog.
+Remove a copy
+public void removeBookItem(String barcode)
+
+
+The method first checks whether the copy exists. It only removes the copy if its status is AVAILABLE.
+
+This protects copies that are issued or reserved.
+Search books
+public List<BookItem> search(String query)
+
+
+The method searches by:
+- Title
+- ISBN
+- Subject
+- Author
+- Publication date
+For example:
+catalog.search("Clean Code");
+catalog.search("Robert C. Martin");
+catalog.search("Software Engineering");
+catalog.search("2008-08-01");
+
+
+The search is case-insensitive for text fields because both the query and the stored text are converted to lowercase.
+
+The implementation performs a linear scan of all copies. If there are \(n\) copies, the search takes approximately \(O(n)\) time, excluding the cost of checking each book's text.
+8. BookLoan — checkout record
+class BookLoan {
+    private final String id;
+    private final Member member;
+    private final BookItem bookItem;
+    private final LocalDate issueDate;
+
+    private LocalDate dueDate;
+    private LocalDate returnDate;
+    private LoanStatus status = LoanStatus.ACTIVE;
+    private int renewalCount = 0;
+}
+
+
+A loan connects one member with one physical copy.
+
+For example:
+Loan ID: LOAN-1
+Member: M-101
+Book copy: BOOK-101
+Issue date: 2026-10-01
+Due date: 2026-10-11
+Status: ACTIVE
+
+
+The loan is a separate class because borrowing is an event with its own data and lifecycle. The member and book themselves do not need to be recreated every time a loan occurs.
+Renewal
+void renew() {
+    dueDate = dueDate.plusDays(10);
+    renewalCount++;
+}
+
+
+If the existing due date is October 11, renewal changes it to October 21 and increments the renewal count.
+
+The service checks eligibility before calling renew().
+Return
+void markReturned(LocalDate date) {
+    returnDate = date;
+    status = LoanStatus.RETURNED;
+}
+
+
+This records the return date and changes the loan status. Keeping the loan record allows the system to retain borrowing history.
+9. Reservation — requesting an unavailable book
+class Reservation {
+    private final String id;
+    private final Member member;
+    private final Book book;
+    private final LocalDate reservationDate;
+
+    private ReservationStatus status =
+            ReservationStatus.WAITING;
+}
+
+
+A reservation records who requested which publication and when.
+
+The status changes as the reservation progresses:
+
+WAITING → READY_FOR_PICKUP → COMPLETED
+
+A reservation can also be cancelled.
+
+The service stores reservations in a map of queues:
+private final Map<String, Queue<Reservation>> reservations =
+        new HashMap<>();
+
+
+The ISBN is the key, and the queue preserves the order of requests for that publication.
+
+For example:
+ISBN-101 → [Reservation M-101, Reservation M-102]
+
+
+When a copy becomes available, the first eligible waiting member should receive priority.
+10. FineCalculator — Strategy pattern
+interface FineCalculator {
+    double calculate(BookLoan loan, LocalDate date);
+}
+
+
+The interface defines what every fine calculator must implement.
+
+The concrete implementation is:
+class DailyFineCalculator implements FineCalculator {
+    private final double dailyRate;
+
+    @Override
+    public double calculate(BookLoan loan, LocalDate date) {
+        long days = ChronoUnit.DAYS.between(
+                loan.getDueDate(), date);
+
+        return Math.max(0, days) * dailyRate;
+    }
+}
+
+
+Suppose:
+- Due date: October 11
+- Return date: October 15
+- Daily fine: ₹5
+The calculation is:
+\[
+\text{Overdue days}=15-11=4
+\]
+
+\[
+\text{Fine}=4\times 5=\text{₹}20
+\]
+
+If the book is returned on or before the due date, the fine is zero.
+
+Math.max(0, days) ensures that returning early does not create a negative fine.
+
+Why Strategy? Later, you could introduce a different fine calculator for different membership categories or book types without changing the return workflow.
+
+One production improvement would be to use BigDecimal rather than double for monetary values.
+11. NotificationService — abstraction for notifications
+interface NotificationService {
+    void send(String recipient, String message);
+}
+
+
+The interface separates the notification requirement from the delivery mechanism.
+class EmailNotificationService implements NotificationService {
+    @Override
+    public void send(String recipient, String message) {
+        System.out.println(
+                "Email to " + recipient + ": " + message);
+    }
+}
+
+
+This class prints a simulated email. It does not actually send one.
+
+In a real application, you could implement:
+- EmailNotificationService
+- SmsNotificationService
+- PushNotificationService
+The LibraryService does not need to know the details of how a message is delivered.
+12. LibraryService — the business logic
+This is the central class that coordinates the system.
+private final Catalog catalog;
+private final FineCalculator fineCalculator;
+private final NotificationService notifier;
+
+
+These dependencies are passed through the constructor. This is constructor-based dependency injection.
+
+The service also maintains:
+private final Map<String, Member> members = new HashMap<>();
+private final Map<String, BookLoan> loans = new HashMap<>();
+private final Map<String, Queue<Reservation>> reservations =
+        new HashMap<>();
+
+
+These are in-memory collections. In a real application, repositories and a database would normally persist this information.
+A. registerMember()
+Registers a member using their ID and checks that the library card barcode is unique.
+
+There is a bug in the current implementation: it removes an entry from members while iterating over members.values(). That can cause a ConcurrentModificationException. A safer approach is to check for duplicate card barcodes first, then insert the member.
+B. issueBook()
+The method receives the member card barcode, book barcode, issue date and requested loan duration.
+
+It checks:
+1. Whether the member exists.
+2. Whether the physical copy exists.
+3. Whether the copy is available.
+4. Whether the member has fewer than five active loans.
+5. Whether the loan duration is between one and ten days.
+6. Whether a reservation has priority.
+Then it creates a BookLoan, marks the copy as issued, adds the loan to the member's history and stores it in the loan map.
+C. returnBook()
+The method:
+1. Finds the loan.
+2. Verifies that the loan is active.
+3. Calculates the fine.
+4. Marks the loan as returned.
+5. Makes the copy available.
+6. Sends a return notification.
+7. Checks whether a waiting reservation can be fulfilled.
+The calculated fine is returned to the caller. The current implementation does not collect or record a payment; that would require a separate payment workflow.
+D. renewBook()
+Checks that the loan exists, is active, is not overdue and has no competing reservation. It then extends the due date by ten days and sends a notification.
+
+The current design does not impose a maximum renewal count. If the business requires one or two renewals only, add that rule here.
+E. reserveBook()
+The method finds the member and book, verifies that no copy is currently available, creates a reservation and adds it to the queue for the book's ISBN.
+F. makeNextReservationReady()
+When a book is returned, this method:
+1. Finds the queue for that ISBN.
+2. Checks whether a reservation is already ready for pickup.
+3. Finds the first waiting reservation.
+4. Finds an available physical copy.
+5. Marks that copy RESERVED.
+6. Changes the reservation to READY_FOR_PICKUP.
+7. Sends a notification.
+Important limitation: the current code marks a copy as RESERVED, but issueBook() only accepts copies with status AVAILABLE. There is no method yet to let the member with the matching ready reservation collect that reserved copy and complete the reservation. A complete implementation needs a collectReservedBook() operation.
+G. checkOverdueBooks()
+Checks all active loans against the supplied date. If today's date is after the due date, it sends an overdue notification.
+
+This method must be called periodically by a scheduler in a real application. Also, as written, it sends a reminder every time it is called for an overdue loan; production systems should track reminder history to avoid repeated messages.
+H. getMemberLoans()
+Returns a member's loan list after verifying that the member exists. The returned list includes both active and returned loans, so it can be used as borrowing history.
+13. Library class
+class Library {
+    private final String name;
+    private final Address address;
+    private final Catalog catalog;
+    private final LibraryService service;
+}
+
+
+This class represents the library itself.
+- name: library name.
+- address: physical location.
+- catalog: collection of physical book copies.
+- service: business operations.
+The Library class does not directly implement checkout or fine calculation. It delegates those responsibilities to LibraryService.
+
+This is a separation of responsibilities: the library represents the organization, while the service handles operations.
+14. main() — program execution
+The main() method demonstrates how all the classes work together.
+Step 1: Create the address
+Address address = new Address(
+    "Main Street", "Delhi", "Delhi",
+    "India", "110001"
+);
+
+
+Creates an address object shared by the library and member.
+Step 2: Create the catalog and book
+Catalog catalog = new Catalog();
+
+Book book = new Book(
+    "ISBN-101", "Clean Code",
+    Arrays.asList("Robert C. Martin"),
+    "Software Engineering",
+    BookType.NON_FICTION,
+    LocalDate.of(2008, 8, 1)
+);
+
+
+Creates a publication and its catalog.
+Step 3: Add a physical copy
+catalog.addBookItem(
+    new BookItem("BOOK-101", book, "BR-01")
+);
+
+
+Creates a physical copy with barcode BOOK-101. Its initial status is AVAILABLE.
+Step 4: Inject dependencies into the service
+LibraryService service = new LibraryService(
+    catalog,
+    new DailyFineCalculator(5.0),
+    new EmailNotificationService()
+);
+
+
+The service receives the catalog, a fine calculator charging ₹5 per overdue day, and a notification implementation.
+Step 5: Register a member
+Member member = new Member(
+    "M-101", "Aman", "aman@example.com",
+    "9876543210", address, "CARD-101"
+);
+
+service.registerMember(member);
+
+
+The member is registered with the library card barcode CARD-101.
+Step 6: Issue the book
+service.issueBook(
+    "CARD-101", "BOOK-101",
+    LocalDate.of(2026, 10, 1), 10
+);
+
+
+The system finds the member and book copy, validates the rules, creates a loan and changes the copy status to ISSUED.
+
+The due date becomes October 11, 2026.
+Step 7: Renew the book
+BookLoan loan = member.getLoans().get(0);
+
+service.renewBook(
+    loan.getId(), LocalDate.of(2026, 10, 5)
+);
+
+
+The book is renewed on October 5, before its due date. The new due date becomes October 21.
+Step 8: Return the book
+double fine = service.returnBook(
+    loan.getId(), LocalDate.of(2026, 10, 25)
+);
+
+System.out.println("Fine: Rs. " + fine);
+
+
+The final due date is October 21, and the return date is October 25.
+\[
+\text{Fine}=4\times ₹5=\text{₹}20
+\]
+
+The console output includes the library name, search results, issued book, renewed due date, notification messages and final fine.
+15. Design patterns and OOP concepts
+Concept	Example in your code	Purpose
+Inheritance	Member extends Person	Reuses common fields
+Abstraction	abstract class Person	Represents a general person
+Encapsulation	Private fields and methods	Controls access to object state
+Composition	BookItem has a Book	Separates publication and physical copy
+Strategy pattern	FineCalculator	Allows different fine rules
+Dependency injection	LibraryService constructor	Makes implementations replaceable
+Repository-style design	Catalog	Separates book storage and searching
+
+One useful distinction for interviews: Catalog follows a repository-like responsibility, but it is not a full database repository. The code stores data in memory.
