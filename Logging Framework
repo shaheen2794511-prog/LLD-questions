@@ -1,0 +1,1047 @@
+The complete flow of the Logging Framework LLD, including the LogManager class that was missing from the previous implementation. They also show how Logger connects to the chain of InfoLogger, ErrorLogger, and DebugLogger.
+
+The important difference is that your instructor's implementation uses integer log levels and the Chain of Responsibility pattern, rather than an enum-based design.
+1. How the classes are connected
+Application
+
+Calls logger.info() or logger.error()
+
+Logger (Singleton)
+
+Creates the chain once and exposes logging methods
+
+LogManager
+
+Builds and links the logger objects
+
+InfoLogger (level 1)
+
+ErrorLogger (level 2)
+
+DebugLogger (level 3)
+
+
+The chain shown above follows your screenshots. Each logger checks the message level and forwards the message to the next logger.
+2. Complete Java code from your screenshots
+Create these seven Java files inside the same package:
+
+SystemDesign.LoggingFrameworkDemo
+A. AbstractLogger.java
+This is the parent class of all three loggers.
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public abstract class AbstractLogger {
+    protected int level;
+    protected AbstractLogger nextLoggingLevel;
+
+    public void setNextLoggingLevel(
+            AbstractLogger nextLoggingLevel) {
+        this.nextLoggingLevel = nextLoggingLevel;
+    }
+
+    public void logMessage(int level, String msg) {
+        if (this.level == level) {
+            display(msg);
+        }
+
+        if (nextLoggingLevel != null) {
+            nextLoggingLevel.logMessage(level, msg);
+        }
+    }
+
+    protected abstract void display(String msg);
+}
+
+
+
+Explanation
+- level: identifies the type of message handled by this logger.
+- nextLoggingLevel: stores the next logger in the chain.
+- setNextLoggingLevel(): links one logger to another.
+- logMessage(): displays a message if the level matches, then passes it forward.
+- display(): is abstract because each subclass defines its own output format.
+Notice that your screenshot uses ==, not <=. This means each logger handles only its exact level.
+B. InfoLogger.java
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class InfoLogger extends AbstractLogger {
+
+    public InfoLogger(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void display(String msg) {
+        System.out.println("INFO : " + msg);
+    }
+}
+
+
+
+This class handles level 1 and prints messages with the INFO prefix.
+C. ErrorLogger.java
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class ErrorLogger extends AbstractLogger {
+
+    public ErrorLogger(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void display(String msg) {
+        System.out.println("ERROR : " + msg);
+    }
+}
+
+
+
+This class handles level 2 and prints messages with the ERROR prefix.
+D. DebugLogger.java
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class DebugLogger extends AbstractLogger {
+
+    public DebugLogger(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void display(String msg) {
+        System.out.println("DEBUG : " + msg);
+    }
+}
+
+
+
+This class handles level 3 and prints messages with the DEBUG prefix.
+E. LogManager.java
+This class is responsible for creating and connecting the chain.
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class LogManager {
+
+    protected static AbstractLogger buildChainOfLogger() {
+
+        AbstractLogger infoLogger = new InfoLogger(1);
+        AbstractLogger errorLogger = new ErrorLogger(2);
+        AbstractLogger debugLogger = new DebugLogger(3);
+
+        infoLogger.setNextLoggingLevel(errorLogger);
+        errorLogger.setNextLoggingLevel(debugLogger);
+
+        return infoLogger;
+    }
+}
+
+
+
+How the chain is created
+InfoLogger(1)
+
+ErrorLogger(2)
+
+DebugLogger(3)
+
+
+The statement return infoLogger; returns the first node. Starting from this node, the framework can traverse the entire chain.
+F. Logger.java
+This is the main class exposed to the application. It implements the Singleton pattern.
+
+package SystemDesign.LoggingFrameworkDemo;
+
+import java.io.Serializable;
+
+public class Logger implements Cloneable, Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    private static volatile Logger logger;
+    private transient AbstractLogger chainOfLogger;
+
+    private Logger() {
+        if (logger != null) {
+            throw new IllegalStateException(
+                "Object already created");
+        }
+    }
+
+    public static Logger getInstance() {
+        if (logger == null) {
+            synchronized (Logger.class) {
+                if (logger == null) {
+                    logger = new Logger();
+                    logger.chainOfLogger =
+                        LogManager.buildChainOfLogger();
+                }
+            }
+        }
+        return logger;
+    }
+
+    @Override
+    protected Object clone()
+            throws CloneNotSupportedException {
+        throw new CloneNotSupportedException();
+    }
+
+    protected Object readResolve() {
+        return getInstance();
+    }
+
+    private void createLog(int level, String msg) {
+        chainOfLogger.logMessage(level, msg);
+    }
+
+    public void info(String msg) {
+        createLog(1, msg);
+    }
+
+    public void error(String msg) {
+        createLog(2, msg);
+    }
+
+    public void debug(String msg) {
+        createLog(3, msg);
+    }
+}
+
+
+
+Explanation of the important methods
+- getInstance() ensures that the application obtains a single shared Logger.
+- synchronized (Logger.class) prevents multiple threads from creating separate instances simultaneously.
+- The second if (logger == null) checks again after acquiring the lock. This is called double-checked locking.
+- chainOfLogger holds the first node of the chain.
+- createLog() passes the selected level and message to the chain.
+- clone() prevents creating another instance through cloning.
+- readResolve() ensures that deserialization returns the shared instance.
+volatile helps ensure visibility of the initialized instance across threads. transient means the chain itself is not serialized; readResolve() obtains the singleton again after deserialization.
+G. Application.java
+This is the entry point of the program.
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class Application {
+
+    public static void main(String[] args) {
+
+        Logger logger = Logger.getInstance();
+
+        logger.info("This is info");
+        logger.error("This is error");
+        logger.debug("This is debug");
+    }
+}
+
+
+
+3. Dry run
+Suppose the application calls:
+logger.error("Payment failed");
+
+
+The execution flow is:
+1. error() calls createLog(2, "Payment failed").
+2. createLog() calls chainOfLogger.logMessage(2, "Payment failed").
+3. InfoLogger compares its level 1 with 2. They do not match, so it doesn't print.
+4. ErrorLogger compares its level 2 with 2. They match, so it prints the message.
+5. DebugLogger compares its level 3 with 2. They don't match, so it doesn't print.
+Output:
+ERROR : Payment failed
+
+
+4. Expected output for the application
+INFO : This is info
+ERROR : This is error
+DEBUG : This is debug
+
+
+5. Design patterns used
+Pattern	Where it is used	Why
+Singleton	Logger	Provides one shared logger instance
+Chain of Responsibility	AbstractLogger, subclasses	Passes messages through linked handlers
+Separation of responsibilities	LogManager	Keeps chain construction separate from logging
+
+One important interview distinction: This implementation matches the logging classes in your screenshots. It currently writes to the console only. To satisfy the original requirement of logging to multiple destinations, such as console, file, and database, you would add a LogSink abstraction and configure multiple sinks at runtime. The integer levels shown here are also custom: in conventional logging systems, DEBUG is generally less severe than INFO and ERROR.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+These new screenshots add another important part to the Logging Framework LLD: the Observer pattern, which allows log messages to be sent to multiple destinations, such as the console and a file.
+
+Your updated design now combines two patterns:
+- Chain of Responsibility: selects the logger that handles a message level.
+- Observer: notifies registered output destinations when a message is logged.
+1. Updated class design
+Application
+
+Logger (Singleton)
+
+Public methods: info(), error(), debug()
+
+AbstractLogger chain
+
+InfoLogger → ErrorLogger → DebugLogger
+
+LogSubject
+
+Maintains observers grouped by log level
+
+ConsoleLogger
+
+FileLogger
+
+
+
+
+The key idea is that a message's level determines which logger processes it, while the observers registered for that level determine where it is sent.
+2. LogObserver.java
+This interface defines the common contract for all logging destinations.
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public interface LogObserver {
+    void log(String message);
+}
+
+
+
+Both ConsoleLogger and FileLogger implement this interface. Therefore, LogSubject can notify either destination without knowing its concrete implementation.
+3. ConsoleLogger.java
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class ConsoleLogger implements LogObserver {
+
+    @Override
+    public void log(String message) {
+        System.out.println("Write to console: " + message);
+    }
+}
+
+
+
+This observer writes messages to the console.
+4. FileLogger.java
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class FileLogger implements LogObserver {
+
+    @Override
+    public void log(String message) {
+        System.out.println("Write to file: " + message);
+    }
+}
+
+
+
+This matches the screenshot's demonstration. It prints a file-writing message but does not actually create a file. Actual file persistence would require a FileWriter, Files.writeString(), or another file-writing API.
+5. LogSubject.java
+This is the main class added in your new screenshots.
+
+package SystemDesign.LoggingFrameworkDemo;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class LogSubject {
+
+    private final Map<Integer, List<LogObserver>> logObservers =
+            new HashMap<>();
+
+    public void addObserver(int level, LogObserver logObserver) {
+        List<LogObserver> observers =
+                logObservers.getOrDefault(level, new ArrayList<>());
+
+        observers.add(logObserver);
+        logObservers.put(level, observers);
+    }
+
+    public void notifyAllObserver(int level, String msg) {
+        for (Map.Entry<Integer, List<LogObserver>> entry
+                : logObservers.entrySet()) {
+
+            if (entry.getKey() == level) {
+                entry.getValue().forEach(
+                        observer -> observer.log(msg)
+                );
+            }
+        }
+    }
+}
+
+
+
+Explanation of LogSubject
+1. Store observers by log level
+Map<Integer, List<LogObserver>> logObservers = new HashMap<>();
+
+
+This maps a level to a list of observers.
+
+For example:
+Level	Registered observers
+1 — INFO	ConsoleLogger, FileLogger
+2 — ERROR	ConsoleLogger, FileLogger
+3 — DEBUG	ConsoleLogger
+
+2. Register observers
+addObserver(1, consoleLogger);
+addObserver(1, fileLogger);
+
+
+Both observers are registered for INFO messages.
+
+getOrDefault() retrieves the existing list or creates a new list if that level has no observers yet. The observer is added to the list and the list is stored back in the map.
+
+3. Notify observers
+notifyAllObserver(1, "Application
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The additional screenshots complete the main logging flow. In particular, InfoLogger and ErrorLogger send formatted messages to LogSubject, which notifies the appropriate observers.
+
+One detail to notice in your code: ConsoleLogger is registered for levels 1 and 2, while FileLogger is registered for level 1. Therefore, INFO messages go to both destinations, and ERROR messages go to the console.
+2. Complete Java implementation
+The following code combines the classes shown in your screenshots into a runnable implementation. It uses the same package structure conceptually, but places the classes in one Java file for easier practice. Save it as Application.java.
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+// ==================== OBSERVER INTERFACE ====================
+
+interface LogObserver {
+    void log(String message);
+}
+
+// ==================== OBSERVER IMPLEMENTATIONS ====================
+
+class ConsoleLogger implements LogObserver {
+    @Override
+    public void log(String message) {
+        System.out.println("Write to console: " + message);
+    }
+}
+
+class FileLogger implements LogObserver {
+    @Override
+    public void log(String message) {
+        System.out.println("Write to file: " + message);
+        // A real implementation would write to a file.
+    }
+}
+
+// ==================== OBSERVER SUBJECT ====================
+
+class LogSubject {
+
+    private final Map<Integer, List<LogObserver>> logObservers =
+            new HashMap<>();
+
+    public void addObserver(int level, LogObserver observer) {
+        List<LogObserver> observers =
+                logObservers.getOrDefault(level, new ArrayList<>());
+
+        observers.add(observer);
+        logObservers.put(level, observers);
+    }
+
+    public void notifyAllObserver(int level, String message) {
+        List<LogObserver> observers = logObservers.get(level);
+
+        if (observers != null) {
+            for (LogObserver observer : observers) {
+                observer.log(message);
+            }
+        }
+    }
+}
+
+// ==================== CHAIN OF RESPONSIBILITY ====================
+
+abstract class AbstractLogger {
+
+    protected int level;
+    protected AbstractLogger nextLoggingLevel;
+
+    public void setNextLoggingLevel(AbstractLogger nextLogger) {
+        this.nextLoggingLevel = nextLogger;
+    }
+
+    public void logMessage(
+            int requestedLevel, String message, LogSubject logSubject) {
+
+        if (requestedLevel == level) {
+            display(message, logSubject);
+        } else if (nextLoggingLevel != null) {
+            nextLoggingLevel.logMessage(
+                    requestedLevel, message, logSubject);
+        } else {
+            System.out.println("Unsupported log level: " + requestedLevel);
+        }
+    }
+
+    protected abstract void display(
+            String message, LogSubject logSubject);
+}
+
+// ==================== CONCRETE LOGGERS ====================
+
+class InfoLogger extends AbstractLogger {
+
+    public InfoLogger(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void display(String message, LogSubject logSubject) {
+        logSubject.notifyAllObserver(1, "INFO: " + message);
+    }
+}
+
+class ErrorLogger extends AbstractLogger {
+
+    public ErrorLogger(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void display(String message, LogSubject logSubject) {
+        logSubject.notifyAllObserver(2, "ERROR: " + message);
+    }
+}
+
+class DebugLogger extends AbstractLogger {
+
+    public DebugLogger(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void display(String message, LogSubject logSubject) {
+        logSubject.notifyAllObserver(3, "DEBUG: " + message);
+    }
+}
+
+// ==================== LOG MANAGER ====================
+
+class LogManager {
+
+    protected static AbstractLogger buildChainOfLogger() {
+
+        AbstractLogger infoLogger = new InfoLogger(1);
+        AbstractLogger errorLogger = new ErrorLogger(2);
+        AbstractLogger debugLogger = new DebugLogger(3);
+
+        infoLogger.setNextLoggingLevel(errorLogger);
+        errorLogger.setNextLoggingLevel(debugLogger);
+
+        return infoLogger;
+    }
+
+    protected static LogSubject buildSubject() {
+
+        LogSubject logSubject = new LogSubject();
+
+        ConsoleLogger consoleLogger = new ConsoleLogger();
+        FileLogger fileLogger = new FileLogger();
+
+        logSubject.addObserver(1, consoleLogger);
+        logSubject.addObserver(2, consoleLogger);
+        logSubject.addObserver(3, consoleLogger);
+
+        logSubject.addObserver(1, fileLogger);
+
+        return logSubject;
+    }
+}
+
+// ==================== SINGLETON LOGGER ====================
+
+class Logger implements Serializable, Cloneable {
+
+    private static volatile Logger logger;
+
+    private final AbstractLogger chainOfLogger;
+    private final LogSubject logSubject;
+
+    private Logger() {
+        chainOfLogger = LogManager.buildChainOfLogger();
+        logSubject = LogManager.buildSubject();
+    }
+
+    public static Logger getInstance() {
+
+        if (logger == null) {
+            synchronized (Logger.class) {
+                if (logger == null) {
+                    logger = new Logger();
+                }
+            }
+        }
+
+        return logger;
+    }
+
+    public void info(String message) {
+        chainOfLogger.logMessage(1, message, logSubject);
+    }
+
+    public void error(String message) {
+        chainOfLogger.logMessage(2, message, logSubject);
+    }
+
+    public void debug(String message) {
+        chainOfLogger.logMessage(3, message, logSubject);
+    }
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        throw new CloneNotSupportedException(
+                "Cloning Logger is not supported");
+    }
+
+    private Object readResolve() {
+        return getInstance();
+    }
+}
+
+// ==================== APPLICATION ====================
+
+public class Application {
+
+    public static void main(String[] args) {
+
+        Logger logger = Logger.getInstance();
+
+        logger.info("Application started");
+        logger.error("Database connection failed");
+        logger.debug("Entering the service method");
+    }
+}
+
+
+
+Note: This is an educational implementation. FileLogger currently prints a simulation of writing to a file; actual file persistence would require a file-writing implementation.
+3. Explanation of every class
+1. LogObserver — Observer interface
+interface LogObserver {
+    void log(String message);
+}
+
+
+This defines a common contract for all logging destinations.
+
+Any class that wants to receive log messages must implement log().
+
+For example:
+- ConsoleLogger displays messages in the console.
+- FileLogger is intended to write messages to a file.
+This is the Observer design pattern.
+2. ConsoleLogger and FileLogger
+Both implement LogObserver, but they handle messages differently.
+public void log(String message) {
+    System.out.println("Write to console: " + message);
+}
+
+
+The console observer prints the message to the terminal.
+
+The file observer currently simulates file output:
+public void log(String message) {
+    System.out.println("Write to file: " + message);
+}
+
+
+Because both implement the same interface, LogSubject can notify them without knowing their concrete classes.
+3. LogSubject — Maintains observers
+This is the key part of your screenshots.
+private final Map<Integer, List<LogObserver>> logObservers =
+        new HashMap<>();
+
+
+The map stores observers according to log level.
+Level	Observers
+1 — INFO	ConsoleLogger, FileLogger
+2 — ERROR	ConsoleLogger
+3 — DEBUG	ConsoleLogger
+
+Why use Map<Integer, List<LogObserver>> instead of a simple list?
+
+Because each log level can have multiple destinations.
+
+For example, INFO messages should go to both the console and the file.
+addObserver()
+public void addObserver(int level, LogObserver observer) {
+    List<LogObserver> observers =
+            logObservers.getOrDefault(level, new ArrayList<>());
+
+    observers.add(observer);
+    logObservers.put(level, observers);
+}
+
+
+Step by step:
+1. Find the list associated with the requested level.
+2. If no list exists, create an empty list.
+3. Add the observer to that list.
+4. Store the list in the map.
+notifyAllObserver()
+public void notifyAllObserver(int level, String message) {
+    List<LogObserver> observers = logObservers.get(level);
+
+    if (observers != null) {
+        for (LogObserver observer : observers) {
+            observer.log(message);
+        }
+    }
+}
+
+
+This retrieves the observers registered for a particular level and invokes their log() method.
+
+For INFO, it calls both ConsoleLogger.log() and FileLogger.log().
+4. AbstractLogger — Chain of Responsibility
+abstract class AbstractLogger {
+    protected int level;
+    protected AbstractLogger nextLoggingLevel;
+}
+
+
+This is the parent class for InfoLogger, ErrorLogger and DebugLogger.
+
+The two fields mean:
+- level: the level handled by this logger.
+- nextLoggingLevel: the next logger in the chain.
+The chain is constructed as follows:
+InfoLogger — Level 1
+
+ErrorLogger — Level 2
+
+DebugLogger — Level 3
+
+
+The setNextLoggingLevel() method links two loggers:
+infoLogger.setNextLoggingLevel(errorLogger);
+errorLogger.setNextLoggingLevel(debugLogger);
+
+
+The logMessage() method checks whether the current logger handles the requested level. If not, it passes the message to the next logger.
+
+For example, if the requested level is 2, InfoLogger passes the message to ErrorLogger, which handles it.
+5. InfoLogger, ErrorLogger and DebugLogger
+Each concrete logger implements display() differently.
+
+For INFO:
+protected void display(String message, LogSubject logSubject) {
+    logSubject.notifyAllObserver(1, "INFO: " + message);
+}
+
+
+The method adds the INFO: prefix and notifies the observers registered for level 1.
+
+The other loggers follow the same logic:
+- ErrorLogger adds ERROR: and notifies level 2.
+- DebugLogger adds DEBUG: and notifies level 3.
+Notice that these classes don't directly decide whether to print to a console or file. That responsibility belongs to the observers.
+6. LogManager — Creates the objects
+LogManager contains two factory-style methods.
+
+buildChainOfLogger() creates the three logger objects and connects them.
+
+buildSubject() creates the subject, creates the observers, and registers each observer for its relevant level.
+
+This keeps object creation and configuration separate from the main logging logic.
+7. Logger — Singleton
+The Logger class provides the application's public logging API:
+Logger logger = Logger.getInstance();
+
+logger.info("Application started");
+logger.error("Database connection failed");
+logger.debug("Entering the service method");
+
+
+The singleton ensures that ordinary calls to getInstance() return the same logger instance.
+
+The double-checked locking structure is:
+if (logger == null) {
+    synchronized (Logger.class) {
+        if (logger == null) {
+            logger = new Logger();
+        }
+    }
+}
+
+
+- The first check avoids synchronization after initialization.
+- synchronized ensures only one thread initializes the instance at a time.
+- The second check prevents multiple instances from being created by competing threads.
+The volatile keyword helps ensure visibility of the initialized instance across threads.
+
+clone() blocks cloning, and readResolve() ensures Java deserialization returns the singleton instance. For strict singleton protection in all circumstances, an enum singleton is generally simpler.
+4. Dry run: What happens when you log an error?
+Suppose the application executes:
+logger.error("Database connection failed");
+
+
+1. Logger receives the call.
+   
+   error() passes level 2, the message and LogSubject to the first logger in the chain.
+2. InfoLogger checks the level.
+   
+   Its level is 1, so it passes the request to ErrorLogger.
+3. ErrorLogger handles the message.
+   
+   Its level is 2, so it adds the ERROR: prefix.
+4. LogSubject notifies observers.
+   
+   It finds the observers registered for level 2. In this implementation, that is ConsoleLogger.
+5. ConsoleLogger prints the result.
+   
+   The file observer does not receive this ERROR message because it is registered only for level 1.
+The output is:
+Write to console: ERROR: Database connection failed
+
+
+5. Expected output for the complete application
+Write to console: INFO: Application started
+Write to file: INFO: Application started
+Write to console: ERROR: Database connection failed
+Write to console: DEBUG: Entering the service method
+
+
+6. Design patterns used
+Pattern	Class	Purpose
+Singleton	Logger	Provides one shared logger instance
+Chain of Responsibility	AbstractLogger and subclasses	Routes each log level to the correct logger
+Observer	LogObserver, LogSubject	Sends messages to registered destinations
+
+Interview takeaway: The most important design decision is separating which logger handles a message from where the message is delivered. The Chain of Responsibility handles the first concern, while the Observer pattern handles the second. LogManager configures both, and the Singleton provides a convenient application-wide entry point.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+package SystemDesign.LoggingFrameworkDemo;
+
+public class LogManager {
+
+    protected static AbstractLogger buildChainOfLogger() {
+
+        AbstractLogger infoLogger = new InfoLogger(1);
+        AbstractLogger errorLogger = new ErrorLogger(2);
+        AbstractLogger debugLogger = new DebugLogger(3);
+
+        infoLogger.setNextLoggingLevel(errorLogger);
+        errorLogger.setNextLoggingLevel(debugLogger);
+
+        return infoLogger;
+    }
+}The statement return infoLogger; returns the first node. Starting from this node, the framework can traverse the entire chain. Why infologger returns fitat
+
+
+
+
+
+
+
+
+
+
+
+
+
+We return infoLogger first because it is the starting point (head) of the Chain of Responsibility. From this first logger, we can reach ErrorLogger and DebugLogger through their links.
+
+Let's understand this step by step.
+1. How the chain is created
+AbstractLogger infoLogger = new InfoLogger(1);
+AbstractLogger errorLogger = new ErrorLogger(2);
+AbstractLogger debugLogger = new DebugLogger(3);
+
+infoLogger.setNextLoggingLevel(errorLogger);
+errorLogger.setNextLoggingLevel(debugLogger);
+
+return infoLogger;
+
+
+After these statements, the chain looks like this:
+infoLogger
+
+Level 1 · First node
+
+errorLogger
+
+Level 2 · Second node
+
+debugLogger
+
+Level 3 · Last node
+
+
+The important point is that infoLogger is connected to errorLogger, and errorLogger is connected to debugLogger.
+2. Why return infoLogger instead of debugLogger?
+Imagine a train with three coaches:
+- Coach 1: InfoLogger
+- Coach 2: ErrorLogger
+- Coach 3: DebugLogger
+If you want to access all three coaches, you start from Coach 1 and follow the connections.
+
+Similarly, returning infoLogger gives the caller access to the entire chain.
+
+If you returned debugLogger instead, you would start at the last node and could not travel backward to the earlier loggers because there are no backward links.
+3. How does the framework traverse the chain?
+Suppose you call:
+chainOfLogger.logMessage(3, "Testing", logSubject);
+
+
+The execution proceeds as follows:
+1. InfoLogger checks whether the requested level 3 matches its level 1. It doesn't.
+2. It passes the request to ErrorLogger.
+3. ErrorLogger checks whether 3 matches its level 2. It doesn't.
+4. It passes the request to DebugLogger.
+5. DebugLogger finds a match and processes the message.
+This works because each logger contains a reference to the next logger.
+4. What does return infoLogger; actually return?
+The method's return type is:
+protected static AbstractLogger buildChainOfLogger()
+
+
+So it returns an AbstractLogger reference pointing to the InfoLogger object.
+AbstractLogger chainOfLogger =
+        LogManager.buildChainOfLogger();
+
+
+Here, chainOfLogger points to InfoLogger, which links to
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+First
+
+
+
+
+
+
+
+
+
+
+
+
+
+Yes, first = InfoLogger, because it is the starting point of the chain.
+infoLogger.setNextLoggingLevel(errorLogger);
+errorLogger.setNextLoggingLevel(debugLogger);
+
+return infoLogger;
+
+
+When we write:
+AbstractLogger logger = LogManager.buildChainOfLogger();
+
+
+logger refers to InfoLogger, but InfoLogger is connected to the other two loggers.
+
+So the framework can traverse the chain:
+
+InfoLogger → ErrorLogger → DebugLogger
+
+Remember: We return only the first node, not all three nodes, because each node maintains a reference to the next node.
