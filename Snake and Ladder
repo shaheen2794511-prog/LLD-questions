@@ -1,0 +1,517 @@
+Snake and Ladder Game — Complete LLD in Java with Explanation
+This combines the requirements slide, all the Java screenshots (Player, Dice, Jumper, GameBoard), and your handwritten notes about startGame(), player turns, dice rolls, snakes, ladders, and winning conditions.
+
+The implementation below follows the same approach as your notes, with a few corrections to make the game work reliably.
+1. Requirements
+- Multiplayer game.
+- Configurable board size.
+- Configurable snake and ladder positions.
+- Configurable number of dice.
+- Every player starts at position 0.
+- Players take turns in a queue.
+- A player rolls the dice and moves forward.
+- Landing on a snake moves the player down; landing on a ladder moves them up.
+- A player wins by reaching the final cell exactly.
+- If a move exceeds the board size, the player stays in their current position and their turn ends.
+2. Class design
+GameBoard
+
+Coordinates turns, positions, snakes, ladders and the game loop
+
+Dice
+
+Rolls the configured number of dice
+
+
+
+Player
+
+Player ID and name
+
+
+Jumper
+
+Start and end positions for snakes and ladders
+
+
+
+
+The GameBoard stores:
+- Dice dice — the dice configuration.
+- Queue<Player> nextTurn — the next player's turn.
+- List<Jumper> snakes — snake configurations.
+- List<Jumper> ladders — ladder configurations.
+- Map<Integer, Integer> playersCurrentPosition — player ID mapped to current position.
+- int boardSize — the final cell number.
+3. Complete Java code
+Put the following code in a file named SnakeAndLadder.java. It uses nested classes so that you can compile and run the entire implementation as one file. In a project matching your screenshots, you can later split these classes into separate files.
+
+import java.util.*;
+
+// Run with: javac SnakeAndLadder.java && java SnakeAndLadder
+public class SnakeAndLadder {
+
+    // -------------------- Player --------------------
+    static class Player {
+        private final String playerName;
+        private final int id;
+
+        Player(String playerName, int id) {
+            this.playerName = Objects.requireNonNull(playerName);
+            this.id = id;
+        }
+
+        String getPlayerName() {
+            return playerName;
+        }
+
+        int getId() {
+            return id;
+        }
+    }
+
+    // -------------------- Dice --------------------
+    static class Dice {
+        private final int numberOfDice;
+        private final Random random = new Random();
+
+        Dice(int numberOfDice) {
+            if (numberOfDice <= 0) {
+                throw new IllegalArgumentException(
+                    "Number of dice must be positive");
+            }
+            this.numberOfDice = numberOfDice;
+        }
+
+        int rollDice() {
+            int total = 0;
+            for (int i = 0; i < numberOfDice; i++) {
+                total += random.nextInt(6) + 1;
+            }
+            return total;
+        }
+    }
+
+    // -------------------- Jumper --------------------
+    static class Jumper {
+        private final int startPoint;
+        private final int endPoint;
+
+        Jumper(int startPoint, int endPoint) {
+            this.startPoint = startPoint;
+            this.endPoint = endPoint;
+        }
+
+        int getStartPoint() {
+            return startPoint;
+        }
+
+        int getEndPoint() {
+            return endPoint;
+        }
+    }
+
+    // -------------------- GameBoard --------------------
+    static class GameBoard {
+        private final int boardSize;
+        private final Dice dice;
+        private final Queue<Player> nextTurn = new ArrayDeque<>();
+        private final Map<Integer, Integer> playersCurrentPosition =
+            new HashMap<>();
+        private final Map<Integer, Integer> snakes = new HashMap<>();
+        private final Map<Integer, Integer> ladders = new HashMap<>();
+        private boolean gameOver = false;
+
+        GameBoard(int boardSize, Dice dice, List<Player> players,
+                  List<Jumper> snakeList, List<Jumper> ladderList) {
+            if (boardSize < 2 || dice == null || players == null ||
+                    players.size() < 2 ||
+                    snakeList == null || ladderList == null) {
+                throw new IllegalArgumentException("Invalid game setup");
+            }
+
+            this.boardSize = boardSize;
+            this.dice = dice;
+
+            Set<Integer> ids = new HashSet<>();
+            for (Player player : players) {
+                if (player == null || !ids.add(player.getId())) {
+                    throw new IllegalArgumentException(
+                        "Players must have unique IDs");
+                }
+                nextTurn.offer(player);
+                playersCurrentPosition.put(player.getId(), 0);
+            }
+
+            configureJumpers(snakeList, snakes, true);
+            configureJumpers(ladderList, ladders, false);
+
+            for (Integer start : snakes.keySet()) {
+                if (ladders.containsKey(start)) {
+                    throw new IllegalArgumentException(
+                        "Snake and ladder cannot start at the same cell");
+                }
+            }
+        }
+
+        private void configureJumpers(List<Jumper> jumpers,
+                                      Map<Integer, Integer> map,
+                                      boolean isSnake) {
+            for (Jumper jumper : jumpers) {
+                if (jumper == null) {
+                    throw new IllegalArgumentException("Null jumper");
+                }
+
+                int start = jumper.getStartPoint();
+                int end = jumper.getEndPoint();
+
+                boolean validDirection =
+                    isSnake ? start > end : start < end;
+
+                if (start < 1 || start >= boardSize ||
+                        end < 1 || end > boardSize ||
+                        !validDirection || map.containsKey(start)) {
+                    throw new IllegalArgumentException(
+                        "Invalid snake/ladder: " + start + " -> " + end);
+                }
+
+                map.put(start, end);
+            }
+        }
+
+        void startGame() {
+            while (!gameOver && !nextTurn.isEmpty()) {
+                Player player = nextTurn.poll();
+
+                int currentPosition =
+                    playersCurrentPosition.get(player.getId());
+                int diceValue = dice.rollDice();
+                int nextCell = currentPosition + diceValue;
+
+                System.out.println("\n" + player.getPlayerName()
+                    + " rolled " + diceValue);
+
+                if (nextCell > boardSize) {
+                    System.out.println("Move exceeds board; turn skipped.");
+                    nextTurn.offer(player);
+                    continue;
+                }
+
+                int finalPosition = nextCell;
+
+                if (snakes.containsKey(nextCell)) {
+                    finalPosition = snakes.get(nextCell);
+                    System.out.println("Snake! Down to " + finalPosition);
+                } else if (ladders.containsKey(nextCell)) {
+                    finalPosition = ladders.get(nextCell);
+                    System.out.println("Ladder! Up to " + finalPosition);
+                }
+
+                playersCurrentPosition.put(
+                    player.getId(), finalPosition);
+
+                System.out.println(player.getPlayerName()
+                    + " is at position " + finalPosition);
+
+                if (finalPosition == boardSize) {
+                    System.out.println(
+                        player.getPlayerName() + " won the game!");
+                    gameOver = true;
+                } else {
+                    nextTurn.offer(player);
+                }
+            }
+        }
+
+        Map<Integer, Integer> getPlayerPositions() {
+            return Collections.unmodifiableMap(
+                new HashMap<>(playersCurrentPosition));
+        }
+    }
+
+    // -------------------- Main --------------------
+    public static void main(String[] args) {
+        int boardSize = 100;
+        int numberOfDice = 1;
+
+        List<Player> players = Arrays.asList(
+            new Player("Alice", 1),
+            new Player("Bob", 2),
+            new Player("Charlie", 3)
+        );
+
+        List<Jumper> snakes = Arrays.asList(
+            new Jumper(99, 10),
+            new Jumper(75, 35),
+            new Jumper(45, 15)
+        );
+
+        List<Jumper> ladders = Arrays.asList(
+            new Jumper(4, 25),
+            new Jumper(13, 46),
+            new Jumper(50, 80)
+        );
+
+        GameBoard game = new GameBoard(
+            boardSize, new Dice(numberOfDice),
+            players, snakes, ladders
+        );
+
+        game.startGame();
+    }
+}
+
+
+
+The complete source file is also available here: Download SnakeAndLadder.java. It has been compiled successfully.
+4. Explanation of every class
+A. Player class
+static class Player {
+    private final String playerName;
+    private final int id;
+}
+
+
+A player has two properties:
+- playerName identifies the player by name.
+- id uniquely identifies the player in the game.
+The constructor initializes both values.
+
+In your screenshots, Lombok's @Getter, @Setter, and @EqualsAndHashCode annotations are used to generate boilerplate methods. This version uses explicit getters instead. The fields are final because the player's name and ID do not need to change during the game.
+B. Dice class
+static class Dice {
+    private final int numberOfDice;
+    private final Random random = new Random();
+
+    int rollDice() {
+        int total = 0;
+        for (int i = 0; i < numberOfDice; i++) {
+            total += random.nextInt(6) + 1;
+        }
+        return total;
+    }
+}
+
+
+This implements your configurable dice requirement.
+
+For one die, the result is between 1 and 6. For two dice, the total is between 2 and 12.
+
+For example, with two dice:
+- First die rolls 3.
+- Second die rolls 5.
+- Total dice value is 8.
+The for loop ensures each die is rolled separately. This is more accurate than generating a single random number between 1 and 12.
+C. Jumper class
+static class Jumper {
+    private final int startPoint;
+    private final int endPoint;
+}
+
+
+This class represents both snakes and ladders.
+Type	Start	End	Effect
+Snake	99	10	Move down
+Snake	75	35	Move down
+Ladder	4	25	Move up
+Ladder	13	46	Move up
+
+The Jumper class only stores the positions. The GameBoard validates whether the direction is correct for a snake or ladder.
+D. GameBoard class
+This is the main game-management class, corresponding to the code in your screenshots.
+
+1. Store the board configuration
+private final int boardSize;
+private final Dice dice;
+private final Queue<Player> nextTurn = new ArrayDeque<>();
+
+
+boardSize defines the final cell, dice controls dice rolls, and nextTurn stores the order of players.
+
+2. Store the player positions
+private final Map<Integer, Integer> playersCurrentPosition =
+    new HashMap<>();
+
+
+The map stores:
+
+player ID → current position
+
+For example:
+Player ID	Position
+1	12
+2	27
+3	0
+
+When the game starts, every player is inserted with position 0.
+
+3. Store snakes and ladders
+private final Map<Integer, Integer> snakes = new HashMap<>();
+private final Map<Integer, Integer> ladders = new HashMap<>();
+
+
+The maps store the starting cell and destination cell.
+
+For example, snakes.get(99) returns 10, while ladders.get(4) returns 25.
+
+This allows a destination to be found in average \(O(1)\) time rather than searching the entire list on every turn.
+
+4. Configure snakes and ladders
+
+The configureJumpers() method checks:
+- Start and end positions are within the board.
+- Snakes go downward.
+- Ladders go upward.
+- Duplicate starting positions are not allowed within the same type.
+- A cell cannot start both a snake and a ladder.
+This ensures invalid board configurations are rejected before the game starts.
+5. Most important method: startGame()
+This is the heart of your handwritten notes and screenshots.
+Step 1: Continue until a player wins
+while (!gameOver && !nextTurn.isEmpty()) {
+
+
+The game continues as long as nobody has won and players remain in the queue.
+
+Your notes use while (nextTurn.size() > 1). That can work when a winner is immediately removed from the game, but it is less clear. An explicit gameOver flag communicates the game state directly.
+Step 2: Get the next player
+Player player = nextTurn.poll();
+
+
+poll() removes and returns the player at the front of the queue.
+
+Suppose the queue is:
+
+Alice → Bob → Charlie
+
+Alice gets the first turn, then Bob, then Charlie.
+Step 3: Read the player's current position
+int currentPosition =
+    playersCurrentPosition.get(player.getId());
+
+
+The map gives the position at which the current player is standing.
+
+For example, Alice might currently be at cell 15.
+Step 4: Roll the dice and calculate the next cell
+int diceValue = dice.rollDice();
+int nextCell = currentPosition + diceValue;
+
+
+Suppose Alice is at 15 and rolls 4.
+\[
+\text{nextCell} = 15 + 4 = 19
+\]
+
+The game checks cell 19 to determine what happens next.
+Step 5: Handle a move beyond the board
+if (nextCell > boardSize) {
+    nextTurn.offer(player);
+    continue;
+}
+
+
+If the board size is 100 and the player is at 98 but rolls 4, the next cell would be 102.
+
+The player does not move. Their turn is skipped, and they are added to the back of the queue.
+
+continue immediately starts the next iteration of the game loop.
+Step 6: Apply a snake or ladder
+int finalPosition = nextCell;
+
+if (snakes.containsKey(nextCell)) {
+    finalPosition = snakes.get(nextCell);
+} else if (ladders.containsKey(nextCell)) {
+    finalPosition = ladders.get(nextCell);
+}
+
+
+Initially, the player's destination is the cell they rolled.
+
+If they land on a snake, the destination changes to the snake's end. If they land on a ladder, the destination changes to the ladder's end.
+
+For example:
+- Alice rolls from cell 95 to cell 99.
+- A snake connects 99 to 10.
+- Alice's final position becomes 10, not 99.
+Step 7: Update the position
+playersCurrentPosition.put(player.getId(), finalPosition);
+
+
+This updates the player's position in the map. Future turns will use the new position.
+Step 8: Check whether the player has won
+if (finalPosition == boardSize) {
+    System.out.println(player.getPlayerName() + " won the game!");
+    gameOver = true;
+} else {
+    nextTurn.offer(player);
+}
+
+
+If the player's final position is equal to the board size, the game ends. Otherwise, the player goes to the back of the queue.
+
+Important: The winner check must happen after applying a ladder, because a ladder can take the player directly to the final cell.
+6. Complete example of a game turn
+Try a turn
+Change the values to see how the game logic calculates a player's final position.
+Board size100
+
+20
+60
+100
+
+
+
+
+
+Current position14
+
+0
+Middle
+Last before finish
+
+
+
+
+
+Dice roll4
+
+1
+3
+6
+
+
+
+
+
+
+Next cell
+18
+
+
+Final position
+18
+
+
+
+Normal move. No snake or ladder.
+
+The example uses a snake at 17 → 6 and a ladder at 25 → 45. These positions are fixed in this demonstration.
+Reset example
+7. Time and space complexity
+Let:
+- \(P\) = number of players.
+- \(S\) = number of snakes.
+- \(L\) = number of ladders.
+- \(D\) = number of dice.
+Operation	Complexity
+Initialize players	\(O(P)\)
+Configure snakes and ladders	\(O(S+L)\) average
+Roll all dice	\(O(D)\)
+Look up a snake or ladder	\(O(1)\) average
+Update a player's position	\(O(1)\) average
+Process one turn	\(O(D)\) average
+
+The game uses \(O(P+S+L)\) space for player state and the configured snakes and ladders, excluding the small amount of temporary memory used during a turn.
+
+The total game duration depends on the number of turns needed to reach the winning cell.
