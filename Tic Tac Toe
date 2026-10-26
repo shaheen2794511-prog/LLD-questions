@@ -1,0 +1,505 @@
+Tic-Tac-Toe Game — Low-Level System Design (LLD) in Java
+For an LLD interview, the goal is to design a Tic-Tac-Toe game using object-oriented programming, clean class responsibilities, and extensible design.
+
+We will design a 3×3 game for two players, where players take turns placing X and O. The first player to get three symbols in a row, column, or diagonal wins. If the board fills up without a winner, the game ends in a draw.
+1. Requirements
+Functional requirements
+- Two players can play a game.
+- Players take turns making moves.
+- A player cannot make a move in an occupied cell.
+- Invalid moves should be rejected.
+- The game detects a win or draw.
+- The game prevents further moves after it finishes.
+Object-oriented design goals
+- Encapsulate the board and player data.
+- Separate game management from win detection.
+- Make it easy to extend the game to different board sizes or winning rules.
+2. Class design
+TicTacToeGame
+
+Controls turns, validates moves, and manages game status
+
+
+Board
+
+Stores cells and places symbols
+
+
+Player
+
+Stores player name and symbol
+
+
+WinningStrategy
+
+Determines whether a move wins
+
+
+GameStatus
+
+IN_PROGRESS, X_WON, O_WON, DRAW
+
+
+
+
+3. Complete Java implementation
+The following code is interview-friendly and uses an interface for the winning strategy, so the winning logic can be changed independently of the game.
+
+import java.util.*;
+
+// Represents the symbol placed on the board
+enum Symbol {
+    X, O, EMPTY
+}
+
+// Represents the current game status
+enum GameStatus {
+    IN_PROGRESS,
+    X_WON,
+    O_WON,
+    DRAW
+}
+
+// Represents a player
+class Player {
+    private final String name;
+    private final Symbol symbol;
+
+    public Player(String name, Symbol symbol) {
+        this.name = name;
+        this.symbol = symbol;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Symbol getSymbol() {
+        return symbol;
+    }
+}
+
+// Represents a move on the board
+class Move {
+    private final int row;
+    private final int col;
+    private final Player player;
+
+    public Move(int row, int col, Player player) {
+        this.row = row;
+        this.col = col;
+        this.player = player;
+    }
+
+    public int getRow() {
+        return row;
+    }
+
+    public int getCol() {
+        return col;
+    }
+
+    public Player getPlayer() {
+        return player;
+    }
+}
+
+// Manages the board
+class Board {
+    private final Symbol[][] grid;
+    private final int size;
+    private int movesCount;
+
+    public Board(int size) {
+        this.size = size;
+        this.grid = new Symbol[size][size];
+        this.movesCount = 0;
+
+        for (int i = 0; i < size; i++) {
+            Arrays.fill(grid[i], Symbol.EMPTY);
+        }
+    }
+
+    public boolean isValidMove(int row, int col) {
+        return row >= 0 && row < size
+                && col >= 0 && col < size
+                && grid[row][col] == Symbol.EMPTY;
+    }
+
+    public void placeSymbol(Move move) {
+        int row = move.getRow();
+        int col = move.getCol();
+
+        if (!isValidMove(row, col)) {
+            throw new IllegalArgumentException("Invalid move!");
+        }
+
+        grid[row][col] = move.getPlayer().getSymbol();
+        movesCount++;
+    }
+
+    public Symbol getCell(int row, int col) {
+        return grid[row][col];
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public boolean isFull() {
+        return movesCount == size * size;
+    }
+
+    public void display() {
+        for (Symbol[] row : grid) {
+            for (Symbol cell : row) {
+                System.out.print(
+                    (cell == Symbol.EMPTY ? "-" : cell) + " "
+                );
+            }
+            System.out.println();
+        }
+        System.out.println();
+    }
+}
+
+// Strategy interface for checking a win
+interface WinningStrategy {
+    boolean checkWinner(Board board, Move move);
+}
+
+// Standard Tic-Tac-Toe winning rules
+class StandardWinningStrategy implements WinningStrategy {
+
+    @Override
+    public boolean checkWinner(Board board, Move move) {
+        int row = move.getRow();
+        int col = move.getCol();
+        Symbol symbol = move.getPlayer().getSymbol();
+        int n = board.getSize();
+
+        // Check the entire row
+        boolean rowWin = true;
+        for (int j = 0; j < n; j++) {
+            if (board.getCell(row, j) != symbol) {
+                rowWin = false;
+                break;
+            }
+        }
+
+        if (rowWin) {
+            return true;
+        }
+
+        // Check the entire column
+        boolean colWin = true;
+        for (int i = 0; i < n; i++) {
+            if (board.getCell(i, col) != symbol) {
+                colWin = false;
+                break;
+            }
+        }
+
+        if (colWin) {
+            return true;
+        }
+
+        // Check the main diagonal, if applicable
+        if (row == col) {
+            boolean diagonalWin = true;
+
+            for (int i = 0; i < n; i++) {
+                if (board.getCell(i, i) != symbol) {
+                    diagonalWin = false;
+                    break;
+                }
+            }
+
+            if (diagonalWin) {
+                return true;
+            }
+        }
+
+        // Check the opposite diagonal, if applicable
+        if (row + col == n - 1) {
+            boolean diagonalWin = true;
+
+            for (int i = 0; i < n; i++) {
+                if (board.getCell(i, n - 1 - i) != symbol) {
+                    diagonalWin = false;
+                    break;
+                }
+            }
+
+            if (diagonalWin) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+// Controls the entire game
+class TicTacToeGame {
+    private final Board board;
+    private final Player[] players;
+    private final WinningStrategy winningStrategy;
+
+    private int currentPlayerIndex;
+    private GameStatus status;
+
+    public TicTacToeGame(
+            Player player1,
+            Player player2,
+            WinningStrategy winningStrategy) {
+
+        if (player1.getSymbol() != Symbol.X
+                || player2.getSymbol() != Symbol.O) {
+            throw new IllegalArgumentException(
+                "Player 1 must be X and Player 2 must be O"
+            );
+        }
+
+        this.board = new Board(3);
+        this.players = new Player[]{player1, player2};
+        this.winningStrategy = winningStrategy;
+        this.currentPlayerIndex = 0;
+        this.status = GameStatus.IN_PROGRESS;
+    }
+
+    public void makeMove(int row, int col) {
+        if (status != GameStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Game has finished!");
+        }
+
+        Player currentPlayer = players[currentPlayerIndex];
+        Move move = new Move(row, col, currentPlayer);
+
+        // Validate and place the symbol
+        board.placeSymbol(move);
+
+        // Check whether this move wins
+        if (winningStrategy.checkWinner(board, move)) {
+            status = currentPlayer.getSymbol() == Symbol.X
+                    ? GameStatus.X_WON
+                    : GameStatus.O_WON;
+
+            System.out.println(currentPlayer.getName() + " wins!");
+        } else if (board.isFull()) {
+            status = GameStatus.DRAW;
+            System.out.println("Game is a draw!");
+        } else {
+            // Switch to the other player
+            currentPlayerIndex = 1 - currentPlayerIndex;
+        }
+
+        board.display();
+    }
+
+    public GameStatus getStatus() {
+        return status;
+    }
+
+    public void displayBoard() {
+        board.display();
+    }
+}
+
+// Entry point
+public class Main {
+    public static void main(String[] args) {
+        Player player1 = new Player("Alice", Symbol.X);
+        Player player2 = new Player("Bob", Symbol.O);
+
+        WinningStrategy strategy =
+                new StandardWinningStrategy();
+
+        TicTacToeGame game =
+                new TicTacToeGame(player1, player2, strategy);
+
+        game.makeMove(0, 0); // Alice: X
+        game.makeMove(1, 0); // Bob: O
+        game.makeMove(0, 1); // Alice: X
+        game.makeMove(1, 1); // Bob: O
+        game.makeMove(0, 2); // Alice wins
+    }
+}
+
+
+
+Save the code in Main.java and run it. The sample game ends when Alice completes the first row.
+4. Explanation of every class
+1. Symbol and GameStatus
+enum Symbol {
+    X, O, EMPTY
+}
+
+enum GameStatus {
+    IN_PROGRESS, X_WON, O_WON, DRAW
+}
+
+
+- Symbol represents what a cell contains.
+- GameStatus tells us whether the game is running, won by X, won by O, or drawn.
+Using enums avoids error-prone string comparisons such as "x" versus "X".
+2. Player
+class Player {
+    private final String name;
+    private final Symbol symbol;
+}
+
+
+Each player has a name and a symbol.
+
+For example:
+- Alice → X
+- Bob → O
+The fields are private to enforce encapsulation, and final because a player's identity and symbol do not change during the game.
+3. Move
+A Move represents one player's attempt to occupy one cell.
+
+For example:
+new Move(0, 2, player1);
+
+
+This means player 1 wants to place X at row 0, column 2. Java array indexes start at zero.
+4. Board
+The board owns the grid and the number of moves.
+private final Symbol[][] grid;
+
+
+For a 3×3 board, it initially looks like this:
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+
+An empty cell is represented by Symbol.EMPTY.
+
+The important methods are:
+- isValidMove(row, col) — verifies that the coordinates are within the board and the cell is empty.
+- placeSymbol(move) — places the player's symbol and increments movesCount.
+- isFull() — checks whether all nine cells are occupied.
+- display() — prints the current board.
+Why does the Board validate moves? Because the board is responsible for protecting its own data. Other classes should not directly modify the grid.
+5. WinningStrategy and StandardWinningStrategy
+interface WinningStrategy {
+    boolean checkWinner(Board board, Move move);
+}
+
+
+The interface defines what needs to happen, without specifying how to check the winner.
+
+StandardWinningStrategy implements the normal rules:
+1. Check the row containing the latest move.
+2. Check the column containing the latest move.
+3. Check the main diagonal if the move is on it.
+4. Check the opposite diagonal if the move is on it.
+Why check only the latest move? A player can only create a new winning line by placing their latest symbol, so checking every row and column after every move is unnecessary.
+6. TicTacToeGame
+This is the main coordinator. It owns the board, the two players, the winning strategy, the current player index, and the game status.
+
+Its makeMove() method follows this sequence:
+1. Check whether the game is still active
+
+2. Create the current player's move
+
+3. Validate and place the symbol
+
+4. Check for a win or draw
+
+5. Switch players if the game continues
+
+
+The expression
+currentPlayerIndex = 1 - currentPlayerIndex;
+
+
+switches between the two player indexes:
+- If the index is 0, it becomes 1.
+- If the index is 1, it becomes 0.
+The status check at the beginning prevents anyone from making moves after the game has finished.
+5. Dry run of the game
+The sample moves are:
+Turn	Player	Move	Result
+1	Alice (X)	(0,0)	Continue
+2	Bob (O)	(1,0)	Continue
+3	Alice (X)	(0,1)	Continue
+4	Bob (O)	(1,1)	Continue
+5	Alice (X)	(0,2)	Alice wins
+
+Final board:
+X
+
+
+X
+
+
+X
+
+
+O
+
+
+O
+
+
+–
+
+
+–
+
+
+–
+
+
+–
+
+
+
+Alice wins — first row complete
+
+When Alice places X at (0,2), the strategy checks row zero and finds that all three cells contain X. The game status becomes X_WON, and no further moves are allowed.
+6. Which design patterns are used?
+Pattern / principle	Where it is used	Why
+Strategy pattern	WinningStrategy	Allows alternative winning rules
+Encapsulation	Board, Player	Protects internal data
+Single Responsibility Principle	Separate Board, Player, Move, and game classes	Each class has a focused responsibility
+Dependency injection	TicTacToeGame constructor	The winning strategy is provided from outside
+
+Why use the Strategy pattern?
+
+Suppose you later want a different winning rule. You can implement another WinningStrategy and pass it to the game without rewriting TicTacToeGame.
+
+The current implementation uses only StandardWinningStrategy; it does not need a Factory pattern or Singleton pattern.
+7. Time and space complexity
+Let \(N\) be the board dimension.
+- Move validation: \(O(1)\)
+- Place a symbol: \(O(1)\)
+- Winner detection: \(O(N)\), because at most one row, one column, and two diagonals are checked.
+- Board space: \(O(N^2)\)
+For the standard 3×3 game, winner detection takes constant time because the board size is fixed.
