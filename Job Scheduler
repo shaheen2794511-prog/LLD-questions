@@ -1,0 +1,285 @@
+Design a Job Scheduler in Java — LLD
+Requirements:
+1. Schedule a one-time task after an initial delay.
+2. Schedule a recurring task at a fixed rate.
+3. Schedule a recurring task with a fixed delay between executions.
+The design should also support asynchronous execution, concurrency, and multithreading. We can implement this using Java's ScheduledExecutorService, which provides these scheduling capabilities without requiring us to build the timer mechanism from scratch.
+1. Understand the three scheduling types
+1. One-time scheduling
+Execute a task once after the specified delay.
+
+Example: Send a notification 5 seconds from now.
+
+Timeline: Wait 5 seconds → Execute once → Finish
+
+2. Fixed-rate scheduling
+Execute a recurring task according to a fixed schedule, measured from the scheduled start times.
+
+Example: Run a monitoring task every 10 seconds.
+
+Timeline: Start at 0s → 10s → 20s → 30s
+
+3. Fixed-delay scheduling
+Execute a recurring task, waiting for the specified delay after one execution finishes before starting the next.
+
+Example: Wait 10 seconds after a report-generation task completes before running it again.
+
+Timeline: Execute → Finish → Wait 10s → Execute again
+
+Important interview distinction: Fixed rate measures time between scheduled start times; fixed delay measures time between the completion of one execution and the start of the next.
+2. Class design
+We will use these classes and interfaces:
+SchedulerDemo
+
+Client code; submits tasks
+
+ISchedulerService
+
+Defines the scheduling API
+
+SchedulerService
+
+Singleton implementation
+
+ScheduledExecutorService
+
+Schedules tasks and manages worker threads
+
+
+We don't need to implement our own PriorityQueue for this version because Java's scheduled executor already manages task timing and execution. A custom priority queue is an alternative if the interviewer specifically requires implementing the scheduling engine ourselves.
+3. Complete Java code
+File 1: ISchedulerService.java
+package scheduler.service;
+
+import java.util.concurrent.ScheduledFuture;
+
+public interface ISchedulerService {
+
+    // Execute once after an initial delay
+    ScheduledFuture<?> schedule(Runnable task, int delay);
+
+    // Repeat according to a fixed-rate schedule
+    ScheduledFuture<?> scheduleAtFixedRate(
+            Runnable task,
+            int delay,
+            int recurringDelay
+    );
+
+    // Repeat after a delay following task completion
+    ScheduledFuture<?> scheduleWithFixedDelay(
+            Runnable task,
+            int delay,
+            int recurringDelay
+    );
+
+    // Stop accepting new tasks and shut down
+    void shutdown();
+}
+
+
+Explanation
+- Runnable task: The business logic that needs to run.
+- delay: Initial delay before the first execution, in seconds.
+- recurringDelay: Interval between scheduled executions or the delay after completion, in seconds.
+- ScheduledFuture<?>: Allows the caller to cancel a scheduled task or inspect its status.
+File 2: SchedulerService.java
+package scheduler.service;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+public class SchedulerService implements ISchedulerService {
+
+    private static final SchedulerService INSTANCE =
+            new SchedulerService();
+
+    private final ScheduledExecutorService executor;
+
+    // Private constructor for Singleton
+    private SchedulerService() {
+        this.executor = Executors.newScheduledThreadPool(4);
+    }
+
+    public static SchedulerService getInstance() {
+        return INSTANCE;
+    }
+
+    @Override
+    public ScheduledFuture<?> schedule(
+            Runnable task, int delay) {
+
+        validate(task, delay);
+
+        return executor.schedule(
+                task, delay, TimeUnit.SECONDS
+        );
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleAtFixedRate(
+            Runnable task, int delay, int recurringDelay) {
+
+        validate(task, delay);
+        validateRecurringDelay(recurringDelay);
+
+        return executor.scheduleAtFixedRate(
+                task,
+                delay,
+                recurringDelay,
+                TimeUnit.SECONDS
+        );
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleWithFixedDelay(
+            Runnable task, int delay, int recurringDelay) {
+
+        validate(task, delay);
+        validateRecurringDelay(recurringDelay);
+
+        return executor.scheduleWithFixedDelay(
+                task,
+                delay,
+                recurringDelay,
+                TimeUnit.SECONDS
+        );
+    }
+
+    private void validate(Runnable task, int delay) {
+        if (task == null) {
+            throw new IllegalArgumentException(
+                    "Task cannot be null"
+            );
+        }
+
+        if (delay < 0) {
+            throw new IllegalArgumentException(
+                    "Delay cannot be negative"
+            );
+        }
+    }
+
+    private void validateRecurringDelay(int delay) {
+        if (delay <= 0) {
+            throw new IllegalArgumentException(
+                    "Recurring delay must be positive"
+            );
+        }
+    }
+
+    @Override
+    public void shutdown() {
+        executor.shutdown();
+    }
+}
+
+
+File 3: SchedulerDemo.java
+package scheduler;
+
+import scheduler.service.ISchedulerService;
+import scheduler.service.SchedulerService;
+
+import java.util.concurrent.TimeUnit;
+
+public class SchedulerDemo {
+
+    public static void main(String[] args)
+            throws InterruptedException {
+
+        ISchedulerService scheduler =
+                SchedulerService.getInstance();
+
+        // 1. Execute once after 2 seconds
+        scheduler.schedule(
+                () -> System.out.println(
+                        "One-time task: " + System.currentTimeMillis()
+                ),
+                2
+        );
+
+        // 2. Execute at a fixed rate
+        scheduler.scheduleAtFixedRate(
+                () -> System.out.println(
+                        "Fixed-rate task: "
+                                + System.currentTimeMillis()
+                ),
+                1,
+                5
+        );
+
+        // 3. Execute with a fixed delay after completion
+        scheduler.scheduleWithFixedDelay(
+                () -> {
+                    System.out.println(
+                            "Fixed-delay task started: "
+                                    + System.currentTimeMillis()
+                    );
+
+                    try {
+                        TimeUnit.SECONDS.sleep(2);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+
+                    System.out.println("Fixed-delay task finished");
+                },
+                1,
+                5
+        );
+
+        // Let the demo run briefly
+        Thread.sleep(16000);
+
+        scheduler.shutdown();
+    }
+}
+
+
+The demo submits three tasks. The scheduler runs them asynchronously, so the main thread does not need to execute their business logic itself.
+
+Note: shutdown() stops accepting new tasks and allows already-submitted tasks to finish. Recurring tasks are not repeated indefinitely after shutdown. In a production application, you would normally manage the scheduler's lifecycle at application startup and shutdown.
+4. Important concepts explained
+A. Why Singleton?
+Your screenshot shows:
+private static final SchedulerService INSTANCE =
+        new SchedulerService();
+
+public static SchedulerService getInstance() {
+    return INSTANCE;
+}
+
+
+This creates one shared scheduler instance when the class is initialized.
+
+Why use it?
+- Avoid creating multiple independent scheduler pools unnecessarily.
+- Centralize task scheduling.
+- Make the scheduler accessible through getInstance().
+This is an eager Singleton. Java class initialization safely publishes the instance to other threads. In a larger application, dependency injection is another good approach.
+B. Why ScheduledExecutorService?
+It provides the core scheduling operations:
+Method	Purpose
+schedule()	Run once after a delay
+scheduleAtFixedRate()	Repeat at a fixed rate
+scheduleWithFixedDelay()	Repeat with a delay after completion
+
+It also manages the worker threads, so you don't need to create a new thread for every scheduled task.
+C. Why a thread pool of four?
+Executors.newScheduledThreadPool(4);
+
+
+This creates a scheduler with four worker threads.
+
+Multiple independent tasks can execute concurrently, subject to available threads. If all four threads are occupied by long-running tasks, additional tasks may wait.
+
+One important detail: successive executions of the same periodic task do not overlap with each other, even when the pool contains multiple threads.
+D. What about the PriorityQueue and deadlocks in your notes?
+- PriorityQueue: A custom scheduler could order jobs by their next execution time, placing the earliest due job at the head. The built-in scheduled executor already handles this.
+- Deadlock: A deadlock could arise if tasks block while holding locks needed by other tasks. Avoid unnecessary locks, avoid waiting cyclically between worker tasks, and don't block every scheduler thread indefinitely.
+- Async: The scheduler submits tasks to worker threads rather than executing their business logic on the caller's thread.
+- Concurrent: Independent scheduled tasks can execute at the same time.
+- Multithreading: The thread pool uses multiple worker threads to perform the work
