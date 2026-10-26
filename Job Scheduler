@@ -47,144 +47,529 @@ Schedules tasks and manages worker threads
 
 
 We don't need to implement our own PriorityQueue for this version because Java's scheduled executor already manages task timing and execution. A custom priority queue is an alternative if the interviewer specifically requires implementing the scheduling engine ourselves.
-3. Complete Java code
-File 1: ISchedulerService.java
-package scheduler.service;
 
-import java.util.concurrent.ScheduledFuture;
+1. Final class design
+SchedulerDemo
 
-public interface ISchedulerService {
+Client — submits and cancels jobs
 
-    // Execute once after an initial delay
-    ScheduledFuture<?> schedule(Runnable task, int delay);
+ISchedulerService
 
-    // Repeat according to a fixed-rate schedule
-    ScheduledFuture<?> scheduleAtFixedRate(
+Scheduling API
+
+SchedulerService — Singleton
+
+Accepts jobs, manages queue, cancellation and shutdown
+
+PriorityQueue
+
+Orders jobs by next execution time
+
+
+JobExecutor
+
+Scheduler thread; waits until a job is due
+
+
+
+Worker Thread Pool
+
+Executes the actual business logic asynchronously
+
+
+We will use these components:
+Component	Responsibility
+TaskType	Defines one-time, fixed-rate and fixed-delay jobs
+Job	Stores the task, ID, timing and cancellation state
+ISchedulerService	Defines the public scheduling operations
+SchedulerService	Manages jobs, synchronization and the worker pool
+JobExecutor	Waits for due jobs and dispatches them
+SchedulerDemo	Demonstrates the complete implementation
+
+Unlike the simpler ScheduledExecutorService solution, this implementation builds the scheduling mechanism ourselves.
+2. Complete Java code
+For easier interview preparation, all classes are placed in a single file named JobSchedulerDemo.java. This avoids package and multiple-file setup issues while preserving the responsibilities of the original design.
+
+The implementation supports one-time scheduling, fixed-rate scheduling, fixed-delay scheduling, cancellation of pending jobs, concurrent execution, exception handling, and shutdown.
+
+import java.util.UUID;
+import java.util.Objects;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
+
+// ================= TASK TYPE =================
+
+enum TaskType {
+    ONE_TIME,
+    REPEAT_FIXED_RATE,
+    REPEAT_FIXED_DELAY
+}
+
+// ================= SCHEDULING API =================
+
+interface ISchedulerService {
+
+    JobHandle schedule(
+            Runnable task, long delay, TimeUnit unit);
+
+    JobHandle scheduleAtFixedRate(
             Runnable task,
-            int delay,
-            int recurringDelay
-    );
+            long initialDelay,
+            long period,
+            TimeUnit unit);
 
-    // Repeat after a delay following task completion
-    ScheduledFuture<?> scheduleWithFixedDelay(
+    JobHandle scheduleWithFixedDelay(
             Runnable task,
-            int delay,
-            int recurringDelay
-    );
+            long initialDelay,
+            long delay,
+            TimeUnit unit);
 
-    // Stop accepting new tasks and shut down
     void shutdown();
 }
 
+// ================= JOB HANDLE =================
 
-Explanation
-- Runnable task: The business logic that needs to run.
-- delay: Initial delay before the first execution, in seconds.
-- recurringDelay: Interval between scheduled executions or the delay after completion, in seconds.
-- ScheduledFuture<?>: Allows the caller to cancel a scheduled task or inspect its status.
-File 2: SchedulerService.java
-package scheduler.service;
+interface JobHandle {
+    String getJobId();
+    boolean cancel();
+}
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+// ================= JOB =================
 
-public class SchedulerService implements ISchedulerService {
+final class Job implements Comparable<Job> {
+
+    private final String jobId;
+    private final Runnable task;
+    private final TaskType taskType;
+    private final long periodNanos;
+
+    // Next scheduled execution, measured using nanoTime().
+    private volatile long nextRunNanos;
+
+    private final AtomicBoolean cancelled =
+            new AtomicBoolean(false);
+
+    Job(
+            String jobId,
+            Runnable task,
+            long nextRunNanos,
+            long periodNanos,
+            TaskType taskType) {
+
+        this.jobId = jobId;
+        this.task = task;
+        this.nextRunNanos = nextRunNanos;
+        this.periodNanos = periodNanos;
+        this.taskType = taskType;
+    }
+
+    String getJobId() {
+        return jobId;
+    }
+
+    Runnable getTask() {
+        return task;
+    }
+
+    TaskType getTaskType() {
+        return taskType;
+    }
+
+    long getPeriodNanos() {
+        return periodNanos;
+    }
+
+    long getNextRunNanos() {
+        return nextRunNanos;
+    }
+
+    void setNextRunNanos(long nextRunNanos) {
+        this.nextRunNanos = nextRunNanos;
+    }
+
+    boolean isCancelled() {
+        return cancelled.get();
+    }
+
+    boolean markCancelled() {
+        return cancelled.compareAndSet(false, true);
+    }
+
+    @Override
+    public int compareTo(Job other) {
+        int result = Long.compare(
+                this.nextRunNanos,
+                other.nextRunNanos);
+
+        if (result == 0) {
+            return this.jobId.compareTo(other.jobId);
+        }
+
+        return result;
+    }
+}
+
+// ================= SCHEDULER SERVICE =================
+
+final class SchedulerService implements ISchedulerService {
 
     private static final SchedulerService INSTANCE =
-            new SchedulerService();
+            new SchedulerService(
+                    Math.max(
+                            1,
+                            Runtime.getRuntime()
+                                    .availableProcessors() - 1));
 
-    private final ScheduledExecutorService executor;
+    private final PriorityQueue<Job> jobQueue =
+            new PriorityQueue<>();
 
-    // Private constructor for Singleton
-    private SchedulerService() {
-        this.executor = Executors.newScheduledThreadPool(4);
+    private final ReentrantLock queueLock =
+            new ReentrantLock();
+
+    private final Condition queueChanged =
+            queueLock.newCondition();
+
+    private final ExecutorService workers;
+
+    private final AtomicBoolean running =
+            new AtomicBoolean(true);
+
+    private final Thread schedulerThread;
+
+    private SchedulerService(int workerCount) {
+        workers = Executors.newFixedThreadPool(workerCount);
+
+        schedulerThread = new Thread(
+                new JobExecutor(),
+                "job-scheduler");
+
+        schedulerThread.start();
     }
 
     public static SchedulerService getInstance() {
         return INSTANCE;
     }
 
-    @Override
-    public ScheduledFuture<?> schedule(
-            Runnable task, int delay) {
-
-        validate(task, delay);
-
-        return executor.schedule(
-                task, delay, TimeUnit.SECONDS
-        );
-    }
+    // ---------- ONE-TIME SCHEDULING ----------
 
     @Override
-    public ScheduledFuture<?> scheduleAtFixedRate(
-            Runnable task, int delay, int recurringDelay) {
+    public JobHandle schedule(
+            Runnable task,
+            long delay,
+            TimeUnit unit) {
 
-        validate(task, delay);
-        validateRecurringDelay(recurringDelay);
-
-        return executor.scheduleAtFixedRate(
-                task,
-                delay,
-                recurringDelay,
-                TimeUnit.SECONDS
-        );
+        return addJob(
+                task, delay, 0,
+                unit, TaskType.ONE_TIME);
     }
+
+    // ---------- FIXED-RATE SCHEDULING ----------
 
     @Override
-    public ScheduledFuture<?> scheduleWithFixedDelay(
-            Runnable task, int delay, int recurringDelay) {
+    public JobHandle scheduleAtFixedRate(
+            Runnable task,
+            long initialDelay,
+            long period,
+            TimeUnit unit) {
 
-        validate(task, delay);
-        validateRecurringDelay(recurringDelay);
-
-        return executor.scheduleWithFixedDelay(
-                task,
-                delay,
-                recurringDelay,
-                TimeUnit.SECONDS
-        );
-    }
-
-    private void validate(Runnable task, int delay) {
-        if (task == null) {
+        if (period <= 0) {
             throw new IllegalArgumentException(
-                    "Task cannot be null"
-            );
+                    "Period must be positive");
         }
 
-        if (delay < 0) {
-            throw new IllegalArgumentException(
-                    "Delay cannot be negative"
-            );
-        }
+        return addJob(
+                task, initialDelay, period,
+                unit, TaskType.REPEAT_FIXED_RATE);
     }
 
-    private void validateRecurringDelay(int delay) {
+    // ---------- FIXED-DELAY SCHEDULING ----------
+
+    @Override
+    public JobHandle scheduleWithFixedDelay(
+            Runnable task,
+            long initialDelay,
+            long delay,
+            TimeUnit unit) {
+
         if (delay <= 0) {
             throw new IllegalArgumentException(
-                    "Recurring delay must be positive"
-            );
+                    "Delay must be positive");
+        }
+
+        return addJob(
+                task, initialDelay, delay,
+                unit, TaskType.REPEAT_FIXED_DELAY);
+    }
+
+    // ---------- COMMON JOB CREATION ----------
+
+    private JobHandle addJob(
+            Runnable task,
+            long initialDelay,
+            long period,
+            TimeUnit unit,
+            TaskType type) {
+
+        Objects.requireNonNull(task, "Task cannot be null");
+        Objects.requireNonNull(unit, "TimeUnit cannot be null");
+
+        if (initialDelay < 0) {
+            throw new IllegalArgumentException(
+                    "Initial delay cannot be negative");
+        }
+
+        long initialDelayNanos = unit.toNanos(initialDelay);
+        long periodNanos = unit.toNanos(period);
+
+        queueLock.lock();
+
+        try {
+            if (!running.get()) {
+                throw new IllegalStateException(
+                        "Scheduler has been shut down");
+            }
+
+            long deadline =
+                    System.nanoTime() + initialDelayNanos;
+
+            Job job = new Job(
+                    UUID.randomUUID().toString(),
+                    task,
+                    deadline,
+                    periodNanos,
+                    type);
+
+            jobQueue.offer(job);
+
+            // Wake the scheduler to recheck the queue head.
+            queueChanged.signalAll();
+
+            return new ScheduledJobHandle(job);
+
+        } finally {
+            queueLock.unlock();
         }
     }
+
+    // ---------- JOB CANCELLATION ----------
+
+    private boolean cancelJob(Job job) {
+        queueLock.lock();
+
+        try {
+            if (!job.markCancelled()) {
+                return false;
+            }
+
+            jobQueue.remove(job);
+
+            // The queue head may have changed.
+            queueChanged.signalAll();
+
+            return true;
+
+        } finally {
+            queueLock.unlock();
+        }
+    }
+
+    private final class ScheduledJobHandle
+            implements JobHandle {
+
+        private final Job job;
+
+        private ScheduledJobHandle(Job job) {
+            this.job = job;
+        }
+
+        @Override
+        public String getJobId() {
+            return job.getJobId();
+        }
+
+        @Override
+        public boolean cancel() {
+            return cancelJob(job);
+        }
+    }
+
+    // ---------- SCHEDULER THREAD ----------
+
+    private final class JobExecutor implements Runnable {
+
+        @Override
+        public void run() {
+            while (running.get()) {
+
+                Job job = null;
+
+                queueLock.lock();
+
+                try {
+                    while (running.get()) {
+
+                        if (jobQueue.isEmpty()) {
+                            queueChanged.await();
+                            continue;
+                        }
+
+                        Job nextJob = jobQueue.peek();
+
+                        long remainingNanos =
+                                nextJob.getNextRunNanos()
+                                - System.nanoTime();
+
+                        if (remainingNanos > 0) {
+                            // Sleep until the deadline or a signal.
+                            queueChanged.awaitNanos(
+                                    remainingNanos);
+                            continue;
+                        }
+
+                        job = jobQueue.poll();
+                        break;
+                    }
+
+                } catch (InterruptedException e) {
+                    if (!running.get()) {
+                        break;
+                    }
+
+                    // Recheck the queue if interrupted unexpectedly.
+                    continue;
+
+                } finally {
+                    queueLock.unlock();
+                }
+
+                if (job == null) {
+                    continue;
+                }
+
+                if (job.isCancelled()) {
+                    continue;
+                }
+
+                try {
+                    Job readyJob = job;
+
+                    workers.execute(
+                            () -> executeJob(readyJob));
+
+                } catch (RejectedExecutionException e) {
+                    if (running.get()) {
+                        System.err.println(
+                                "Worker pool rejected job: "
+                                        + job.getJobId());
+                    }
+                }
+            }
+        }
+    }
+
+    // ---------- WORKER EXECUTION ----------
+
+    private void executeJob(Job job) {
+
+        if (job.isCancelled()) {
+            return;
+        }
+
+        // Preserve the scheduled deadline before rescheduling.
+        long previousDeadline = job.getNextRunNanos();
+
+        try {
+            job.getTask().run();
+
+        } catch (Throwable error) {
+            System.err.println(
+                    "Job failed: " + job.getJobId());
+
+            error.printStackTrace();
+
+        } finally {
+            rescheduleAfterExecution(job, previousDeadline);
+        }
+    }
+
+    // ---------- RESCHEDULING ----------
+
+    private void rescheduleAfterExecution(
+            Job job,
+            long previousDeadline) {
+
+        if (job.getTaskType() == TaskType.ONE_TIME) {
+            return;
+        }
+
+        queueLock.lock();
+
+        try {
+            if (!running.get() || job.isCancelled()) {
+                return;
+            }
+
+            long nextDeadline;
+
+            if (job.getTaskType()
+                    == TaskType.REPEAT_FIXED_RATE) {
+
+                // Measure from the previous scheduled time.
+                nextDeadline =
+                        previousDeadline + job.getPeriodNanos();
+
+            } else {
+
+                // Measure from the completion time.
+                nextDeadline =
+                        System.nanoTime() + job.getPeriodNanos();
+            }
+
+            job.setNextRunNanos(nextDeadline);
+            jobQueue.offer(job);
+
+            // Wake the scheduler if the next deadline changes.
+            queueChanged.signalAll();
+
+        } finally {
+            queueLock.unlock();
+        }
+    }
+
+    // ---------- SHUTDOWN ----------
 
     @Override
     public void shutdown() {
-        executor.shutdown();
+
+        queueLock.lock();
+
+        try {
+            if (!running.compareAndSet(true, false)) {
+                return;
+            }
+
+            // Do not leave pending jobs in the queue.
+            for (Job job : jobQueue) {
+                job.markCancelled();
+            }
+
+            jobQueue.clear();
+            queueChanged.signalAll();
+
+        } finally {
+            queueLock.unlock();
+        }
+
+        schedulerThread.interrupt();
+        workers.shutdown();
     }
 }
 
+// ================= DEMO =================
 
-File 3: SchedulerDemo.java
-package scheduler;
-
-import scheduler.service.ISchedulerService;
-import scheduler.service.SchedulerService;
-
-import java.util.concurrent.TimeUnit;
-
-public class SchedulerDemo {
+public class JobSchedulerDemo {
 
     public static void main(String[] args)
             throws InterruptedException {
@@ -192,94 +577,374 @@ public class SchedulerDemo {
         ISchedulerService scheduler =
                 SchedulerService.getInstance();
 
-        // 1. Execute once after 2 seconds
-        scheduler.schedule(
+        // 1. One-time job: execute after 2 seconds.
+        JobHandle oneTime = scheduler.schedule(
                 () -> System.out.println(
-                        "One-time task: " + System.currentTimeMillis()
-                ),
-                2
-        );
+                        "One-time job: "
+                                + System.currentTimeMillis()),
+                2,
+                TimeUnit.SECONDS);
 
-        // 2. Execute at a fixed rate
-        scheduler.scheduleAtFixedRate(
-                () -> System.out.println(
-                        "Fixed-rate task: "
-                                + System.currentTimeMillis()
-                ),
-                1,
-                5
-        );
+        // 2. Fixed-rate job: every 5 seconds.
+        JobHandle fixedRate =
+                scheduler.scheduleAtFixedRate(
+                        () -> System.out.println(
+                                "Fixed-rate job: "
+                                        + System.currentTimeMillis()),
+                        1,
+                        5,
+                        TimeUnit.SECONDS);
 
-        // 3. Execute with a fixed delay after completion
-        scheduler.scheduleWithFixedDelay(
-                () -> {
-                    System.out.println(
-                            "Fixed-delay task started: "
-                                    + System.currentTimeMillis()
-                    );
+        // 3. Fixed-delay job: wait 5 seconds after completion.
+        JobHandle fixedDelay =
+                scheduler.scheduleWithFixedDelay(
+                        () -> {
+                            System.out.println(
+                                    "Fixed-delay job started");
 
-                    try {
-                        TimeUnit.SECONDS.sleep(2);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+                            try {
+                                TimeUnit.SECONDS.sleep(2);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                return;
+                            }
 
-                    System.out.println("Fixed-delay task finished");
-                },
-                1,
-                5
-        );
+                            System.out.println(
+                                    "Fixed-delay job finished");
+                        },
+                        1,
+                        5,
+                        TimeUnit.SECONDS);
 
-        // Let the demo run briefly
+        System.out.println(
+                "One-time Job ID: " + oneTime.getJobId());
+
         Thread.sleep(16000);
 
+        // Optional cancellation before shutdown.
+        fixedRate.cancel();
+        fixedDelay.cancel();
+
         scheduler.shutdown();
+
+        System.out.println("Scheduler shut down.");
     }
 }
 
 
-The demo submits three tasks. The scheduler runs them asynchronously, so the main thread does not need to execute their business logic itself.
 
-Note: shutdown() stops accepting new tasks and allows already-submitted tasks to finish. Recurring tasks are not repeated indefinitely after shutdown. In a production application, you would normally manage the scheduler's lifecycle at application startup and shutdown.
-4. Important concepts explained
-A. Why Singleton?
-Your screenshot shows:
-private static final SchedulerService INSTANCE =
-        new SchedulerService();
+3. How to run the code
+1. Create a file named JobSchedulerDemo.java.
+2. Paste the complete code into it.
+3. Compile and run:
+javac JobSchedulerDemo.java
+java JobSchedulerDemo
 
-public static SchedulerService getInstance() {
-    return INSTANCE;
+
+The exact output order and timestamps will vary because jobs execute asynchronously.
+
+4. Detailed explanation of every important component
+A. TaskType — which scheduling policy to use
+enum TaskType {
+    ONE_TIME,
+    REPEAT_FIXED_RATE,
+    REPEAT_FIXED_DELAY
 }
 
 
-This creates one shared scheduler instance when the class is initialized.
+The scheduler needs to know whether a job should run once or repeat.
 
-Why use it?
-- Avoid creating multiple independent scheduler pools unnecessarily.
-- Centralize task scheduling.
-- Make the scheduler accessible through getInstance().
-This is an eager Singleton. Java class initialization safely publishes the instance to other threads. In a larger application, dependency injection is another good approach.
-B. Why ScheduledExecutorService?
-It provides the core scheduling operations:
-Method	Purpose
-schedule()	Run once after a delay
-scheduleAtFixedRate()	Repeat at a fixed rate
-scheduleWithFixedDelay()	Repeat with a delay after completion
-
-It also manages the worker threads, so you don't need to create a new thread for every scheduled task.
-C. Why a thread pool of four?
-Executors.newScheduledThreadPool(4);
+For example, sending a welcome email may be a one-time job, while checking system health may be a recurring job.
+B. Job — the data for a task
+private final String jobId;
+private final Runnable task;
+private final TaskType taskType;
+private final long periodNanos;
+private volatile long nextRunNanos;
 
 
-This creates a scheduler with four worker threads.
+Each Job stores everything the scheduler needs to execute it.
+- jobId: identifies the job.
+- task: contains the actual business logic.
+- taskType: specifies the recurrence policy.
+- periodNanos: specifies the recurring interval.
+- nextRunNanos: represents the next scheduled deadline.
+Why use System.nanoTime() instead of System.currentTimeMillis()?
 
-Multiple independent tasks can execute concurrently, subject to available threads. If all four threads are occupied by long-running tasks, additional tasks may wait.
+For scheduling delays, nanoTime() provides a monotonic time source, which is not affected by normal wall-clock adjustments. Its values are meaningful for measuring elapsed time, not for displaying calendar dates.
+C. Comparable<Job> — how the queue selects a job
+@Override
+public int compareTo(Job other) {
+    int result = Long.compare(
+            this.nextRunNanos,
+            other.nextRunNanos);
 
-One important detail: successive executions of the same periodic task do not overlap with each other, even when the pool contains multiple threads.
-D. What about the PriorityQueue and deadlocks in your notes?
-- PriorityQueue: A custom scheduler could order jobs by their next execution time, placing the earliest due job at the head. The built-in scheduled executor already handles this.
-- Deadlock: A deadlock could arise if tasks block while holding locks needed by other tasks. Avoid unnecessary locks, avoid waiting cyclically between worker tasks, and don't block every scheduler thread indefinitely.
-- Async: The scheduler submits tasks to worker threads rather than executing their business logic on the caller's thread.
-- Concurrent: Independent scheduled tasks can execute at the same time.
-- Multithreading: The thread pool uses multiple worker threads to perform the work
+    if (result == 0) {
+        return this.jobId.compareTo(other.jobId);
+    }
+
+    return result;
+}
+
+
+A PriorityQueue needs an ordering rule.
+
+This comparison prioritizes the job with the earliest deadline. The ID provides a tie-breaker when two deadlines are equal.
+
+For example:
+Job	Deadline	Priority
+A	8000	3
+B	2000	1
+C	5000	2
+
+Job B is at the head of the queue because it is due first.
+D. ISchedulerService — the contract
+interface ISchedulerService {
+    JobHandle schedule(...);
+    JobHandle scheduleAtFixedRate(...);
+    JobHandle scheduleWithFixedDelay(...);
+    void shutdown();
+}
+
+
+The interface separates the public API from its implementation.
+
+A client only needs to know how to submit, cancel and schedule tasks. It doesn't need to know how the priority queue, locks or worker threads work internally.
+E. SchedulerService — the main coordinator
+The service contains four important pieces of state:
+private final PriorityQueue<Job> jobQueue;
+private final ReentrantLock queueLock;
+private final Condition queueChanged;
+private final ExecutorService workers;
+
+
+- PriorityQueue: stores pending jobs by deadline.
+- ReentrantLock: protects concurrent access to the queue.
+- Condition: allows the scheduler thread to wait until something changes.
+- ExecutorService: executes tasks using a reusable worker pool.
+The singleton instance ensures that clients share one scheduler.
+private static final SchedulerService INSTANCE =
+        new SchedulerService(
+                Math.max(
+                        1,
+                        Runtime.getRuntime()
+                                .availableProcessors() - 1));
+
+
+The worker count is based on the available processors, with a minimum of one worker. This is a simple default, not a universally optimal pool size.
+F. addJob() — submitting a job
+This method:
+1. Validates the task, time unit and delay.
+2. Acquires the queue lock.
+3. Rejects submissions after shutdown.
+4. Calculates the deadline.
+5. Creates a unique job ID and a Job object.
+6. Inserts the job into the priority queue.
+7. Signals the scheduler thread.
+8. Returns a JobHandle.
+The signal is important. Suppose the scheduler is waiting for a job due in 30 seconds, but a new job is submitted that is due in 2 seconds. The scheduler must wake up and recalculate the next deadline.
+G. JobExecutor — deciding when to dispatch jobs
+This is the dedicated scheduler thread.
+if (jobQueue.isEmpty()) {
+    queueChanged.await();
+    continue;
+}
+
+
+If there are no jobs, it waits rather than repeatedly checking an empty queue.
+long remainingNanos =
+        nextJob.getNextRunNanos()
+        - System.nanoTime();
+
+
+If the next job is not due yet, it waits for the remaining duration:
+queueChanged.awaitNanos(remainingNanos);
+
+
+After waking, it checks the queue again. This is essential because the queue may have changed while the scheduler was waiting.
+
+When a job is due, the scheduler removes it and submits it to the worker pool:
+job = jobQueue.poll();
+workers.execute(() -> executeJob(job));
+
+
+In the complete code, a local variable is used inside the lambda because Java requires captured local variables to be final or effectively final.
+
+The scheduler does not execute the business logic itself. It delegates the work to a worker thread.
+5. Fixed-rate vs fixed-delay — most important interview concept
+This is the core scheduling logic in your handwritten notes.
+Fixed rate
+The next deadline is calculated from the previous scheduled deadline.
+0s
+
+5s
+
+10s
+
+15s
+
+
+If a task takes 2 seconds and its period is 5 seconds, its intended schedule is at 0, 5, 10, 15 seconds. If execution falls behind, the next run may start late or immediately after the previous run finishes, but the original timeline is retained.
+
+Fixed delay
+The next deadline is calculated from the previous task's completion time.
+0s
+Task starts
+
+2s
+Task finishes
+
+7s
+Next execution starts
+
+9s
+Next execution finishes
+
+
+With a 5-second delay and a 2-second task, the next execution starts at approximately 7 seconds, followed by the next at 14 seconds.
+
+Where does the code implement this?
+Fixed rate:
+nextDeadline =
+        previousDeadline + job.getPeriodNanos();
+
+
+Fixed delay:
+nextDeadline =
+        System.nanoTime() + job.getPeriodNanos();
+
+
+The second calculation happens after the task completes.
+
+Why not reschedule fixed-rate jobs using the current time? Doing so would cause schedule drift. Each execution would shift the next deadline based on when it happened to finish or be dispatched.
+
+Our implementation also avoids overlapping executions of the same recurring Job, because it reschedules the job only after the current execution finishes.
+6. Why do we need ReentrantLock and Condition?
+Your handwritten notes mention a queue, an entry-added signal, and the scheduler's waiting behavior.
+ReentrantLock
+queueLock.lock();
+
+try {
+    jobQueue.offer(job);
+    queueChanged.signalAll();
+} finally {
+    queueLock.unlock();
+}
+
+
+The queue is shared between client threads, the scheduler thread and worker threads that reschedule recurring jobs. The lock protects modifications and prevents concurrent operations from corrupting the scheduling logic.
+
+The finally block guarantees that the lock is released.
+Condition
+queueChanged.await();
+
+
+This lets the scheduler wait efficiently when the queue is empty.
+queueChanged.signalAll();
+
+
+This wakes waiting scheduler logic when a new job arrives, a deadline changes or shutdown begins.
+
+The scheduler always checks the queue again after waking. A signal does not guarantee that a job is due.
+
+Interview distinction: PriorityQueue is not thread-safe by itself. We make its shared operations safe by guarding them with the same lock. A PriorityBlockingQueue is another option, but it does not by itself provide the deadline-based waiting and notification behavior required by this custom design.
+7. How cancellation works
+The client receives a JobHandle when it schedules a task.
+JobHandle handle = scheduler.schedule(
+        () -> System.out.println("Hello"),
+        10,
+        TimeUnit.SECONDS);
+
+handle.cancel();
+
+
+The handle exposes the job ID and a cancellation operation.
+
+The scheduler marks the job cancelled and removes it from the queue if it is still pending. If the job is currently executing, cancellation prevents its recurrence, but it does not interrupt the running task.
+
+A more advanced implementation could store a Future for each execution and support interruption of running work.
+8. How exception handling works
+try {
+    job.getTask().run();
+} catch (Throwable error) {
+    System.err.println(
+            "Job failed: " + job.getJobId());
+    error.printStackTrace();
+} finally {
+    rescheduleAfterExecution(job, previousDeadline);
+}
+
+
+The finally block ensures that recurring jobs are considered for rescheduling even when the task fails.
+
+This implementation deliberately continues recurring jobs after a failure. That is a design choice; a production system might instead stop the recurrence, retry with backoff, or move failed jobs into a dead-letter queue.
+
+For ordinary application code, catching Exception rather than Throwable is generally preferable because Throwable also catches serious JVM errors.
+9. Design patterns and concepts used
+Pattern or concept	Where it appears	Why it is used
+Singleton	SchedulerService	Shares one scheduler instance
+Producer-consumer	Scheduling service and worker pool	Separates job submission from execution
+Priority queue	PriorityQueue<Job>	Selects the earliest scheduled job
+Composition	Scheduler owns its queue, lock and worker pool	Keeps responsibilities separate
+Strategy-like design	TaskType and rescheduling logic	Supports different scheduling policies
+Interface-based design	ISchedulerService	Separates the API from its implementation
+
+A useful distinction for interviews: TaskType is an enum that selects scheduling behavior. It is not, by itself, a full implementation of the Strategy design pattern. To demonstrate the Strategy pattern explicitly, you could introduce a ReschedulingStrategy interface with separate fixed-rate and fixed-delay implementations.
+10. What happens when you run the demo?
+Explore the scheduling behavior
+Change the values to see how the timing differs. This is a timeline illustration, not a live execution of the Java code.
+Initial delay2 seconds
+
+0s
+5s
+
+
+
+
+
+Recurring interval5 seconds
+
+1s
+10s
+
+
+
+
+
+Task execution duration2 seconds
+
+1s
+6s
+
+
+
+
+
+Scheduling policy
+One-time
+
+Fixed rate
+
+Fixed delay
+
+
+
+Result: The first scheduled time is 2s. Each subsequent execution starts approximately 7s after the previous one started, because the task takes 2s and then waits 5s.
+
+The illustration assumes the scheduler and workers are available immediately. Actual execution can be delayed by thread contention or other system activity.
+
+11. Important improvements to mention in an LLD interview
+The code is a useful educational implementation, but be ready to discuss these production concerns:
+1. Persistent jobs: Jobs stored only in memory are lost if the application restarts. A database or durable message queue can persist them.
+2. Retries: Failed tasks may require retry limits, exponential backoff and dead-letter handling.
+3. Cancellation: Running tasks are not interrupted by this JobHandle.cancel() implementation.
+4. Shutdown: The current shutdown clears pending jobs and allows already running tasks to finish. A production system should define whether pending jobs are discarded or drained.
+5. Worker-pool sizing: A fixed thread pool can accumulate queued work when tasks arrive faster than workers can process it. Production systems need capacity limits and backpressure.
+6. Time handling: System.nanoTime() is appropriate for elapsed-time scheduling within one process. Calendar-based jobs, such as running at 9 AM every day, need explicit time-zone and daylight-saving rules.
+
+
+        
+        
+
+    
+
