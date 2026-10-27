@@ -262,8 +262,6 @@ public class SnakeAndLadder {
 }
 
 
-
-The complete source file is also available here: Download SnakeAndLadder.java. It has been compiled successfully.
 4. Explanation of every class
 A. Player class
 static class Player {
@@ -276,8 +274,8 @@ A player has two properties:
 - playerName identifies the player by name.
 - id uniquely identifies the player in the game.
 The constructor initializes both values.
-
-In your screenshots, Lombok's @Getter, @Setter, and @EqualsAndHashCode annotations are used to generate boilerplate methods. This version uses explicit getters instead. The fields are final because the player's name and ID do not need to change during the game.
+ 
+Lombok's @Getter, @Setter, and @EqualsAndHashCode annotations are used to generate boilerplate methods. This version uses explicit getters instead. The fields are final because the player's name and ID do not need to change during the game.
 B. Dice class
 static class Dice {
     private final int numberOfDice;
