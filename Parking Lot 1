@@ -42,7 +42,7 @@ leave 4
 status
 
 
-Let's execute them mentally.
+Let's execute them.
 Command	What happens	Slot assigned
 create_parking_lot 6	Create six slots	—
 park KA-01-HH-1234 White	First car parks	1
@@ -209,35 +209,7 @@ For example, if available slots are {2, 4, 5} and slot 1 becomes free, the next 
 
 The overall solution combines a sorted set for nearest-slot allocation, hash maps for fast lookups, and a Car class for object-oriented design.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Now that you have shared the remaining screenshots, we can see the complete set of commands and expected outputs. There are a few additional requirements that our approach must cover.
+Requirements that our approach must cover.
 8. Complete list of commands
 Command	Purpose
 create_parking_lot 6	Create a parking lot with six slots
@@ -312,42 +284,13 @@ One important detail: the sample output is case-sensitive and formatting-sensiti
 
 The next step is to implement the complete Java solution with all these commands and both input modes.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-yes
-
-
-
-
-
-
-
-
-
-
-
-
-
 Complete Java Solution — Parking Lot System
 We'll implement the complete solution using Java, OOP, TreeSet, and HashMap, supporting every command in your screenshots and both input modes:
 - File mode: java Main input.txt
 - Interactive mode: java Main
 The implementation will allocate the nearest available slot, free slots when cars leave, support all three queries, and stop on exit in interactive mode.
 1. Complete Java code
-Save this code in a file named Main.java.
+File named Main.java.
 
 
 import java.io.*;
