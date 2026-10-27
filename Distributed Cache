@@ -1,5 +1,5 @@
 Cache System LLD in Java — Complete Code and Explanation
-From your screenshots, the problem is to design a generic, extensible cache system supporting three main operations:
+The problem is to design a generic, extensible cache system supporting three main operations:
 1. Put: Store a key-value pair.
 2. Get: Retrieve a value using its key.
 3. Eviction: When the cache is full, remove an existing entry according to an eviction policy, such as LRU (Least Recently Used).
@@ -17,7 +17,7 @@ Stores key-value pairs
 HashMapBasedStorage
 
 
-**EvictionPolicy
+EvictionPolicy
 
 
 DoublyLinkedList
@@ -370,7 +370,6 @@ It maintains two fields:
 private final Map<K, V> storage;
 private final int capacity;
 
-
 - storage holds the actual key-value pairs.
 - capacity is the maximum number of entries allowed.
 Suppose the capacity is 3:
@@ -627,40 +626,9 @@ Replace the spaced package text above with the exact valid Java package name use
 The central flow remains: Cache coordinates storage and eviction, LRUEvictionPolicy tracks access order, and the doubly linked list enables constant-time node updates.
 
 
+Add the JUnit test cases for the custom doubly linked list and LRU eviction policy, along with the Cache and CacheFactory implementation.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-These new screenshots add the JUnit test cases for the custom doubly linked list and LRU eviction policy, along with the Cache and CacheFactory implementation.
-
-I can combine these with your previous screenshots to explain the complete LLD project. Here is what the new code is testing.
+Here is what the new code is testing.
 1. DoublyLinkedListTest.java
 The test checks whether elements and existing nodes are correctly added and detached.
 @Test
@@ -765,20 +733,6 @@ When Cache.put(key, value) encounters full storage:
 When Cache.get(key) succeeds, the key is marked as recently accessed so that it is less likely to be evicted next.
 
 This design uses the Strategy pattern for the eviction policy, a Factory for cache creation, and a HashMap + doubly linked list for efficient LRU operations.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class DoublyLinkedListNode<E> {
@@ -1002,40 +956,7 @@ public class CacheSystem {
         System.out.println(cache.get("A")); // Apple
         System.out.println(cache.get("D")); // Dates
     }
-} expalin this
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-expalin this
-
-
-
-
-
-
-
-
-
-
-
-
+} 
 
 This code implements an LRU Cache (Least Recently Used Cache) in Java using a HashMap, a custom Doubly Linked List, and several object-oriented design principles.
 
