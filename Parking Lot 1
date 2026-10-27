@@ -1,301 +1,32 @@
-Parking Lot System — Problem Explanation and Approach in Java
-This is a common Low-Level Design (LLD) and data structures problem. The main challenge is to allocate the nearest available parking slot efficiently and support different queries about parked cars.
+Parking Lot System in Java — Complete Code Explanation
+Let's understand your code step by step, from the classes and data structures to how each command executes. This is useful for both Java interviews and LLD preparation.
 
-Let's understand the requirements first, then design the algorithm you can implement in Java.
-1. Understand the problem statement
-You have a parking lot that can hold up to n cars. The parking slots are numbered from 1 to n, in increasing order of distance from the entry point.
+The main idea is:
+- Assign the nearest available parking slot to an incoming car.
+- Store the car's registration number and colour.
+- Free the slot when the car leaves.
+- Answer queries about cars by registration number or colour.
+- Accept commands from either a file or the terminal.
+1. Overall architecture
+Your program has three main parts:
+Main
 
-For example, if the parking lot has six slots:
-Parking lot entrance
-1
-Occupied
-2
-Free
-3
-Occupied
-4
-Free
-5
-Occupied
-6
-Free
-
-Illustration only: slots 1, 3 and 5 are occupied; slots 2, 4 and 6 are free.
-
-The lower the slot number, the closer it is to the entrance.
-Requirements
-1. Create a parking lot: Specify its capacity.
-2. Park a car: Record its registration number and colour, and assign the nearest available slot.
-3. Leave a parking slot: Remove the car from its slot and make the slot available again.
-4. Query the parking lot: Find information using registration number, colour, or slot number.
-5. Support two input modes: Accept commands interactively from the terminal or read commands from a file.
-2. Understand the sample input
-The screenshot shows these commands:
-create_parking_lot 6
-park KA-01-HH-1234 White
-park KA-01-HH-9999 White
-park KA-01-BB-0001 Black
-park KA-01-HH-7777 Red
-park KA-01-HH-2701 Blue
-park KA-01-HH-3141 Black
-leave 4
-status
+Reads commands and dispatches them
 
 
-Let's execute them.
-Command	What happens	Slot assigned
-create_parking_lot 6	Create six slots	—
-park KA-01-HH-1234 White	First car parks	1
-park KA-01-HH-9999 White	Second car parks	2
-park KA-01-BB-0001 Black	Third car parks	3
-park KA-01-HH-7777 Red	Fourth car parks	4
-park KA-01-HH-2701 Blue	Fifth car parks	5
-park KA-01-HH-3141 Black	Sixth car parks	6
-leave 4	Car in slot 4 leaves	4 becomes free
-status	Display all currently occupied slots	1, 2, 3, 5, 6
-
-Notice that when slot 4 becomes free, the system must remember that it is available for the next arriving car.
-3. Which data structures should we use?
-We need to answer two important questions efficiently:
-- Which is the nearest available slot?
-- Where is a particular car parked?
-I recommend using a TreeSet and HashMap in Java.
-
-1. TreeSet<Integer> availableSlots
-
-Stores all available slot numbers in sorted order.
-
-Example: {2, 4, 5, 6}
-
-Calling first() gives 2, the nearest available slot. After parking the car, remove 2 from the set.
-
-
-
-
-2. HashMap<Integer, Car> slotToCar
-
-Maps a slot number to the car occupying it.
-
-Example: 1 → (KA-01-HH-1234, White)
-
-This helps display the parking status and find the car in a particular slot.
-
-
-
-
-3. HashMap<String, Integer> registrationToSlot
-
-Maps each registration number to its slot.
-
-Example: KA-01-HH-1234 → 1
-
-This makes it easy to find the slot for a given registration number.
-
-
-
-We can also maintain a colour index, such as Map<String, Set<Integer>>, to find all slots occupied by cars of a particular colour efficiently. For a simpler initial implementation, we can scan the occupied cars instead.
-4. Algorithm for each command
-A. create_parking_lot 6
-1. Create an empty TreeSet.
-2. Insert slot numbers from 1 to 6.
-3. Initialise the maps.
-Initially:
-availableSlots = {1, 2, 3, 4, 5, 6}
-slotToCar = {}
-registrationToSlot = {}
-
-
-B. park KA-01-HH-1234 White
-The algorithm is:
-1. Check whether the parking lot exists.
-2. Check whether a slot is available.
-3. Get the smallest slot using availableSlots.first().
-4. Remove that slot from availableSlots.
-5. Create a Car object containing its registration number and colour.
-6. Store the car in slotToCar.
-7. Store the registration-to-slot mapping.
-8. Print the assigned slot.
-For example:
-int slot = availableSlots.first();
-availableSlots.remove(slot);
-
-Car car = new Car("KA-01-HH-1234", "White");
-slotToCar.put(slot, car);
-registrationToSlot.put(car.registrationNumber, slot);
-
-
-This is the core of the problem: the TreeSet ensures that the smallest available slot is always selected.
-C. leave 4
-When the car in slot 4 leaves:
-1. Check whether slot 4 is occupied.
-2. Retrieve the car from slotToCar.
-3. Remove the car's registration number from registrationToSlot.
-4. Remove the car from slotToCar.
-5. Add slot 4 back to availableSlots.
-Car car = slotToCar.remove(4);
-
-if (car != null) {
-    registrationToSlot.remove(car.registrationNumber);
-    availableSlots.add(4);
-}
-
-
-After the command, slot 4 is available again. If the next car arrives, it will receive slot 4 because it is now the smallest available slot.
-D. status
-Iterate over the occupied slots and display:
-Slot No.    Registration No.    Colour
-1           KA-01-HH-1234       White
-2           KA-01-HH-9999       White
-3           KA-01-BB-0001       Black
-5           KA-01-HH-2701       Blue
-6           KA-01-HH-3141       Black
-
-
-The table above assumes the six parking commands succeeded and slot 4 was subsequently vacated.
-E. Query commands
-The screenshot lists three types of queries:
-Query	Approach
-Registration numbers of cars of a particular colour	Scan occupied cars and match the colour, or use a colour index
-Slot number for a registration number	Look up registrationToSlot
-Slot numbers occupied by cars of a particular colour	Scan occupied cars or use a colour index
-
-For example, querying the slot for KA-01-HH-9999 returns slot 2.
-5. Time complexity
-Let \(n\) be the parking lot capacity.
-Operation	Data structure	Time complexity
-Create parking lot	Initialise TreeSet	\(O(n\log n)\)
-Find nearest slot	TreeSet.first()	\(O(\log n)\)
-Remove available slot	TreeSet.remove()	\(O(\log n)\)
-Park a car	TreeSet and HashMaps	\(O(\log n)\)
-Leave a car	TreeSet and HashMaps	\(O(\log n)\)
-Find slot by registration	HashMap	\(O(1)\) average
-Display status	Iterate over occupied slots	\(O(n)\)
-Search by colour	Scan occupied cars	\(O(n)\)
-
-Note: TreeSet.first() itself is \(O(\log n)\) or better in the general Java API analysis convention; the practical implementation retrieves the first element efficiently. The overall parking operation is \(O(\log n)\).
-6. Suggested Java class design
-For a clean object-oriented solution, use these classes:
 ParkingLot
-Manages capacity, slots and parking operations
 
-create · park · leave · status · queries
+Manages slots, parked cars, and queries
 
 
 Car
-Registration number
 
-Colour
-
-
-Main
-Reads commands
-
-Prints output
+Stores registration number and colour
 
 
+Main receives commands such as park KA-01-HH-1234 White. It calls the appropriate method in ParkingLot, which updates the data structures and prints the result.
 
-
-- Car represents a parked vehicle.
-- ParkingLot manages the available slots, occupied slots and query operations.
-- Main parses commands and calls the appropriate methods.
-The command-line input can be handled in two ways:
-1. If no filename is supplied, read commands from standard input.
-2. If a filename is supplied as an argument, read commands from that file.
-Both modes should use the same command-processing logic. This avoids duplicating the parking lot implementation.
-7. What should you remember for an interview?
-The most important design decision is choosing TreeSet<Integer> for the available slots. A regular queue would not work correctly because a slot that becomes free may have a smaller number than the slots already waiting.
-
-For example, if available slots are {2, 4, 5} and slot 1 becomes free, the next car must get slot 1, not slot 2. A TreeSet handles this naturally.
-
-The overall solution combines a sorted set for nearest-slot allocation, hash maps for fast lookups, and a Car class for object-oriented design.
-
-Requirements that our approach must cover.
-8. Complete list of commands
-Command	Purpose
-create_parking_lot 6	Create a parking lot with six slots
-park KA-01-HH-1234 White	Park a car and assign the nearest available slot
-leave 4	Free slot 4
-status	Display occupied slots in ascending order
-registration_numbers_for_cars_with_colour White	Find registration numbers of white cars
-slot_numbers_for_cars_with_colour White	Find occupied slot numbers for white cars
-slot_number_for_registration_number KA-01-HH-3141	Find the slot for a particular registration number
-exit	Stop interactive command processing
-
-9. Important example: what happens after leave 4?
-Suppose the occupied slots are:
-1  KA-01-HH-1234  White
-2  KA-01-HH-9999  White
-3  KA-01-BB-0001  Black
-4  KA-01-HH-7777  Red
-5  KA-01-HH-2701  Blue
-6  KA-01-HH-3141  Black
-
-
-After executing leave 4, the parking lot becomes:
-1  KA-01-HH-1234  White
-2  KA-01-HH-9999  White
-3  KA-01-BB-0001  Black
-5  KA-01-HH-2701  Blue
-6  KA-01-HH-3141  Black
-
-
-Now, if we execute:
-park KA-01-P-333 White
-
-
-The car receives slot 4, because it is the nearest available slot.
-
-But if we then execute:
-park DL-12-AA-9999 White
-
-
-the parking lot is full, so the expected output is:
-Sorry, parking lot is full
-
-
-10. Query results for the example
-After the new white car parks in slot 4, the queries return:
-registration_numbers_for_cars_with_colour White
-KA-01-HH-1234, KA-01-HH-9999, KA-01-P-333
-
-
-slot_numbers_for_cars_with_colour White
-1, 2, 4
-
-
-slot_number_for_registration_number KA-01-HH-3141
-6
-
-
-slot_number_for_registration_number MH-04-AY-1111
-Not found
-
-
-These results show why we need to maintain the parking state correctly after every park and leave operation.
-11. Final implementation strategy
-I recommend implementing the solution in this order:
-1. Create the Car class with registration number and colour.
-2. Create the ParkingLot class with a TreeSet for available slots and maps for occupied cars.
-3. Implement create, park, leave, and status.
-4. Implement the three query commands.
-5. Implement a command parser that dispatches each input line to the correct method.
-6. In main, read either from a supplied filename or from standard input, using the same parser for both.
-One important detail: the sample output is case-sensitive and formatting-sensitive. Follow the exact messages shown in the screenshots, including Not found, Sorry, parking lot is full, and Slot number 4 is free.
-
-The next step is to implement the complete Java solution with all these commands and both input modes.
-
-Complete Java Solution — Parking Lot System
-We'll implement the complete solution using Java, OOP, TreeSet, and HashMap, supporting every command in your screenshots and both input modes:
-- File mode: java Main input.txt
-- Interactive mode: java Main
-The implementation will allocate the nearest available slot, free slots when cars leave, support all three queries, and stop on exit in interactive mode.
-1. Complete Java code
-File named Main.java.
-
-
-import java.io.*;
-import java.util.*;
-
+2. The Car class
 class Car {
     private final String registrationNumber;
     private final String colour;
@@ -314,313 +45,648 @@ class Car {
     }
 }
 
-class ParkingLot {
-    private final TreeSet<Integer> availableSlots = new TreeSet<>();
-    private final TreeMap<Integer, Car> parkedCars = new TreeMap<>();
-    private final Map<String, Integer> registrationToSlot = new HashMap<>();
-    private final Map<String, TreeSet<Integer>> colourToSlots =
-            new HashMap<>();
 
-    private boolean created = false;
+What does this class do?
+It represents one car.
 
-    public void createParkingLot(int capacity) {
-        if (capacity <= 0) {
-            System.out.println("Invalid parking lot capacity");
-            return;
-        }
+Each car has two properties:
+- registrationNumber — for example, KA-01-HH-1234.
+- colour — for example, White.
+The constructor initializes these properties:
+Car car = new Car("KA-01-HH-1234", "White");
 
-        availableSlots.clear();
-        parkedCars.clear();
-        registrationToSlot.clear();
-        colourToSlots.clear();
 
-        for (int i = 1; i <= capacity; i++) {
-            availableSlots.add(i);
-        }
+This creates a car with that registration number and colour.
 
-        created = true;
-        System.out.println(
-                "Created a parking lot with " + capacity + " slots");
+Why use private final?
+- private prevents other classes from directly accessing the fields.
+- final means the references cannot be reassigned after initialization.
+- Getter methods allow other classes to read the values.
+This is an example of encapsulation. The car does not manage parking slots itself; it only stores car information.
+3. The four important data structures
+Inside ParkingLot, you maintain four data structures.
+private final TreeSet<Integer> availableSlots = new TreeSet<>();
+
+private final TreeMap<Integer, Car> parkedCars = new TreeMap<>();
+
+private final Map<String, Integer> registrationToSlot = new HashMap<>();
+
+private final Map<String, TreeSet<Integer>> colourToSlots =
+        new HashMap<>();
+
+
+Let's understand each one.
+1. availableSlots — TreeSet
+Stores available slot numbers in ascending order.
+
+Example: {1, 3, 5, 6}
+
+pollFirst() retrieves and removes the smallest available slot. This ensures the nearest available slot is allocated.
+
+
+2. parkedCars — TreeMap
+Maps slot numbers to cars.
+
+Example: {1 → White car, 3 → Black car}
+
+A TreeMap keeps slot numbers sorted, so status() displays cars in ascending slot order.
+
+
+3. registrationToSlot — HashMap
+Maps a registration number to its slot.
+
+Example: {KA-01-HH-1234 → 1}
+
+This enables an average \(O(1)\) lookup by registration number.
+
+
+4. colourToSlots — HashMap of TreeSets
+Maps a colour to the slots occupied by cars of that colour.
+
+Example: {white → {1, 2}, black → {3, 6}}
+
+This allows the system to retrieve all occupied slots for a colour in sorted order.
+
+
+These structures maintain different views of the same parking lot. Whenever a car parks or leaves, the relevant structures must be updated consistently.
+
+4. The createParkingLot() method
+public void createParkingLot(int capacity) {
+    if (capacity <= 0) {
+        System.out.println("Invalid parking lot capacity");
+        return;
     }
 
-    public void park(String registrationNumber, String colour) {
-        if (!created) {
-            System.out.println("Please create a parking lot first");
-            return;
-        }
+    availableSlots.clear();
+    parkedCars.clear();
+    registrationToSlot.clear();
+    colourToSlots.clear();
 
-        if (registrationToSlot.containsKey(registrationNumber)) {
-            System.out.println("Car is already parked");
-            return;
-        }
-
-        if (availableSlots.isEmpty()) {
-            System.out.println("Sorry, parking lot is full");
-            return;
-        }
-
-        // Get the nearest available slot.
-        int slot = availableSlots.pollFirst();
-
-        Car car = new Car(registrationNumber, colour);
-        parkedCars.put(slot, car);
-        registrationToSlot.put(registrationNumber, slot);
-
-        colourToSlots
-                .computeIfAbsent(colour.toLowerCase(),
-                        key -> new TreeSet<>())
-                .add(slot);
-
-        System.out.println("Allocated slot number: " + slot);
+    for (int i = 1; i <= capacity; i++) {
+        availableSlots.add(i);
     }
 
-    public void leave(int slot) {
-        Car car = parkedCars.remove(slot);
+    created = true;
+    System.out.println(
+            "Created a parking lot with " + capacity + " slots");
+}
 
-        if (car == null) {
-            System.out.println("Slot number " + slot + " is free");
-            return;
-        }
 
-        registrationToSlot.remove(car.getRegistrationNumber());
+Suppose the input is:
+create_parking_lot 6
 
-        String colour = car.getColour().toLowerCase();
-        TreeSet<Integer> slots = colourToSlots.get(colour);
-        slots.remove(slot);
 
-        if (slots.isEmpty()) {
-            colourToSlots.remove(colour);
-        }
+The command creates six slots numbered from 1 to 6.
 
-        // Make the slot available again.
-        availableSlots.add(slot);
+The loop:
+for (int i = 1; i <= capacity; i++) {
+    availableSlots.add(i);
+}
 
+
+adds all six slots to the TreeSet.
+
+Initially, the state is:
+availableSlots = {1, 2, 3, 4, 5, 6}
+parkedCars = {}
+registrationToSlot = {}
+colourToSlots = {}
+
+
+The created flag is set to true to indicate that the parking lot has been initialized.
+
+Important: Calling clear() resets an existing parking lot. In a production implementation, you would normally prevent re-creation while cars are parked or explicitly define what resetting means.
+5. The park() method — the most important part
+public void park(String registrationNumber, String colour) {
+    if (!created) {
+        System.out.println("Please create a parking lot first");
+        return;
+    }
+
+    if (registrationToSlot.containsKey(registrationNumber)) {
+        System.out.println("Car is already parked");
+        return;
+    }
+
+    if (availableSlots.isEmpty()) {
+        System.out.println("Sorry, parking lot is full");
+        return;
+    }
+
+    int slot = availableSlots.pollFirst();
+
+    Car car = new Car(registrationNumber, colour);
+    parkedCars.put(slot, car);
+    registrationToSlot.put(registrationNumber, slot);
+
+    colourToSlots
+            .computeIfAbsent(colour.toLowerCase(),
+                    key -> new TreeSet<>())
+            .add(slot);
+
+    System.out.println("Allocated slot number: " + slot);
+}
+
+
+Let's understand the method line by line.
+Step 1: Check whether the parking lot exists
+if (!created) {
+    System.out.println("Please create a parking lot first");
+    return;
+}
+
+
+If the parking lot has not been created, the method prints an error and stops.
+
+The return prevents the remaining code from executing.
+Step 2: Prevent duplicate parking
+if (registrationToSlot.containsKey(registrationNumber)) {
+    System.out.println("Car is already parked");
+    return;
+}
+
+
+If the same registration number is already present, the car cannot be parked a second time.
+
+For example, if KA-01-HH-1234 is already parked, the system rejects another park command with that registration number.
+Step 3: Check whether the lot is full
+if (availableSlots.isEmpty()) {
+    System.out.println("Sorry, parking lot is full");
+    return;
+}
+
+
+If no slots are available, the system rejects the request.
+Step 4: Find the nearest available slot
+int slot = availableSlots.pollFirst();
+
+
+This is the key line.
+
+Suppose:
+availableSlots = {2, 4, 5, 6}
+
+
+After executing pollFirst():
+slot = 2
+availableSlots = {4, 5, 6}
+
+
+The smallest available slot is returned and removed in a single operation.
+Step 5: Create the car and update the maps
+Car car = new Car(registrationNumber, colour);
+
+parkedCars.put(slot, car);
+registrationToSlot.put(registrationNumber, slot);
+
+
+If the assigned slot is 2, these maps become:
+parkedCars:
+2 → Car("KA-01-HH-9999", "White")
+
+registrationToSlot:
+KA-01-HH-9999 → 2
+
+
+Step 6: Update the colour index
+colourToSlots
+        .computeIfAbsent(colour.toLowerCase(),
+                key -> new TreeSet<>())
+        .add(slot);
+
+
+This line may look complicated, so break it into two parts.
+
+computeIfAbsent() means: if the key does not exist, create a value and store it.
+
+For a white car, if no white entry exists, the map creates an empty TreeSet. Then .add(slot) adds the assigned slot.
+
+For example:
+colourToSlots:
+white → {1, 2}
+black → {3}
+
+
+Calling colour.toLowerCase() makes the stored colour key lowercase, so White and white share the same index.
+Complete parking example
+Commands:
+create_parking_lot 3
+park KA-01-HH-1234 White
+park KA-01-HH-9999 White
+park KA-01-BB-0001 Black
+park DL-12-AA-9999 Red
+
+
+Expected output:
+Created a parking lot with 3 slots
+Allocated slot number: 1
+Allocated slot number: 2
+Allocated slot number: 3
+Sorry, parking lot is full
+
+
+
+6. The leave() method
+public void leave(int slot) {
+    Car car = parkedCars.remove(slot);
+
+    if (car == null) {
         System.out.println("Slot number " + slot + " is free");
+        return;
     }
 
-    public void status() {
-        System.out.println("Slot No. Registration No Colour");
+    registrationToSlot.remove(car.getRegistrationNumber());
 
-        for (Map.Entry<Integer, Car> entry : parkedCars.entrySet()) {
-            Car car = entry.getValue();
+    String colour = car.getColour().toLowerCase();
+    TreeSet<Integer> slots = colourToSlots.get(colour);
+    slots.remove(slot);
 
-            System.out.println(
-                    entry.getKey() + " " +
-                    car.getRegistrationNumber() + " " +
-                    car.getColour());
-        }
+    if (slots.isEmpty()) {
+        colourToSlots.remove(colour);
     }
 
-    public void registrationNumbersForColour(String colour) {
-        StringJoiner result = new StringJoiner(", ");
+    availableSlots.add(slot);
 
-        // Iterate in slot order for deterministic output.
-        for (Car car : parkedCars.values()) {
-            if (car.getColour().equalsIgnoreCase(colour)) {
-                result.add(car.getRegistrationNumber());
-            }
-        }
+    System.out.println("Slot number " + slot + " is free");
+}
+
+
+Suppose slot 2 contains a white car.
+Step 1: Remove the car from the occupied-slot map
+Car car = parkedCars.remove(slot);
+
+
+remove() returns the car previously stored at slot 2 and removes the mapping.
+
+If slot 2 was occupied, car contains the car object. If the slot was empty, car is null.
+Step 2: Handle an already empty slot
+if (car == null) {
+    System.out.println("Slot number " + slot + " is free");
+    return;
+}
+
+
+If no car was present, the method stops. It doesn't attempt to remove registration or colour information.
+Step 3: Remove the registration mapping
+registrationToSlot.remove(car.getRegistrationNumber());
+
+
+This deletes the registration number from the index.
+
+Before:
+KA-01-HH-9999 → 2
+
+
+After:
+No entry for KA-01-HH-9999
+
+
+Step 4: Remove the slot from the colour index
+String colour = car.getColour().toLowerCase();
+TreeSet<Integer> slots = colourToSlots.get(colour);
+slots.remove(slot);
+
+
+If white cars occupy slots {1, 2}, leaving slot 2 changes the set to {1}.
+
+If the set becomes empty, this code removes the colour entry entirely:
+if (slots.isEmpty()) {
+    colourToSlots.remove(colour);
+}
+
+
+Step 5: Make the slot available again
+availableSlots.add(slot);
+
+
+This is essential. Without it, the slot would never be reused.
+
+For example:
+Before leaving:
+availableSlots = {4, 5, 6}
+
+After leaving slot 2:
+availableSlots = {2, 4, 5, 6}
+
+
+The next car will receive slot 2, because it is now the smallest available slot.
+
+7. The status() method
+public void status() {
+    System.out.println("Slot No. Registration No Colour");
+
+    for (Map.Entry<Integer, Car> entry : parkedCars.entrySet()) {
+        Car car = entry.getValue();
 
         System.out.println(
-                result.length() == 0 ? "Not found" : result.toString());
-    }
-
-    public void slotNumbersForColour(String colour) {
-        TreeSet<Integer> slots =
-                colourToSlots.get(colour.toLowerCase());
-
-        if (slots == null || slots.isEmpty()) {
-            System.out.println("Not found");
-            return;
-        }
-
-        StringJoiner result = new StringJoiner(", ");
-
-        for (int slot : slots) {
-            result.add(String.valueOf(slot));
-        }
-
-        System.out.println(result);
-    }
-
-    public void slotNumberForRegistration(String registrationNumber) {
-        Integer slot = registrationToSlot.get(registrationNumber);
-
-        System.out.println(slot == null ? "Not found" : slot);
+                entry.getKey() + " " +
+                car.getRegistrationNumber() + " " +
+                car.getColour());
     }
 }
 
-public class Main {
 
-    private static boolean processCommand(
-            String line, ParkingLot parkingLot) {
+The method displays every occupied slot.
 
-        line = line.trim();
+Here:
+for (Map.Entry<Integer, Car> entry : parkedCars.entrySet())
 
-        if (line.isEmpty()) {
-            return true;
+
+iterates through every entry in the TreeMap.
+- entry.getKey() returns the slot number.
+- entry.getValue() returns the Car object.
+- car.getRegistrationNumber() returns the registration number.
+- car.getColour() returns the colour.
+Because parkedCars is a TreeMap, the slots appear in ascending order automatically.
+
+Example:
+Slot No. Registration No Colour
+1 KA-01-HH-1234 White
+2 KA-01-HH-9999 White
+3 KA-01-BB-0001 Black
+
+
+Notice that the method displays only occupied slots, not the free ones.
+8. Find registration numbers by colour
+public void registrationNumbersForColour(String colour) {
+    StringJoiner result = new StringJoiner(", ");
+
+    for (Car car : parkedCars.values()) {
+        if (car.getColour().equalsIgnoreCase(colour)) {
+            result.add(car.getRegistrationNumber());
         }
+    }
 
-        String[] parts = line.split("\\s+");
+    System.out.println(
+            result.length() == 0 ? "Not found" : result.toString());
+}
 
-        try {
-            switch (parts[0].toLowerCase()) {
 
-                case "create_parking_lot":
-                    if (parts.length == 2) {
-                        parkingLot.createParkingLot(
-                                Integer.parseInt(parts[1]));
-                    } else {
-                        System.out.println("Invalid command");
-                    }
-                    break;
+Suppose the parked cars are:
+Slot	Registration number	Colour
+1	KA-01-HH-1234	White
+2	KA-01-HH-9999	White
+3	KA-01-BB-0001	Black
 
-                case "park":
-                    if (parts.length == 3) {
-                        parkingLot.park(parts[1], parts[2]);
-                    } else {
-                        System.out.println("Invalid command");
-                    }
-                    break;
+Command:
+registration_numbers_for_cars_with_colour White
 
-                case "leave":
-                    if (parts.length == 2) {
-                        parkingLot.leave(
-                                Integer.parseInt(parts[1]));
-                    } else {
-                        System.out.println("Invalid command");
-                    }
-                    break;
 
-                case "status":
-                    parkingLot.status();
-                    break;
+Output:
+KA-01-HH-1234, KA-01-HH-9999
 
-                case "registration_numbers_for_cars_with_colour":
-                    if (parts.length == 2) {
-                        parkingLot.registrationNumbersForColour(
-                                parts[1]);
-                    } else {
-                        System.out.println("Invalid command");
-                    }
-                    break;
 
-                case "slot_numbers_for_cars_with_colour":
-                    if (parts.length == 2) {
-                        parkingLot.slotNumbersForColour(parts[1]);
-                    } else {
-                        System.out.println("Invalid command");
-                    }
-                    break;
+How does StringJoiner work?
+StringJoiner result = new StringJoiner(", ");
+result.add("KA-01-HH-1234");
+result.add("KA-01-HH-9999");
 
-                case "slot_number_for_registration_number":
-                    if (parts.length == 2) {
-                        parkingLot.slotNumberForRegistration(
-                                parts[1]);
-                    } else {
-                        System.out.println("Invalid command");
-                    }
-                    break;
 
-                case "exit":
-                    return false;
+The final string becomes:
+KA-01-HH-1234, KA-01-HH-9999
 
-                default:
-                    System.out.println("Invalid command");
-            }
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid number");
-        }
 
+The method uses equalsIgnoreCase() so White, white, and WHITE match.
+
+It scans all parked cars, which takes \(O(n)\) time in the worst case.
+9. Find slot numbers by colour
+public void slotNumbersForColour(String colour) {
+    TreeSet<Integer> slots =
+            colourToSlots.get(colour.toLowerCase());
+
+    if (slots == null || slots.isEmpty()) {
+        System.out.println("Not found");
+        return;
+    }
+
+    StringJoiner result = new StringJoiner(", ");
+
+    for (int slot : slots) {
+        result.add(String.valueOf(slot));
+    }
+
+    System.out.println(result);
+}
+
+
+Unlike the previous method, this method uses the colourToSlots index.
+
+Suppose:
+colourToSlots:
+white → {1, 2, 4}
+black → {3, 6}
+
+
+Command:
+slot_numbers_for_cars_with_colour White
+
+
+Output:
+1, 2, 4
+
+
+The lookup finds the set for the specified colour, then iterates through its sorted slot numbers.
+
+If the colour doesn't exist in the map, get() returns null. The method prints Not found and returns.
+10. Find the slot by registration number
+public void slotNumberForRegistration(String registrationNumber) {
+    Integer slot = registrationToSlot.get(registrationNumber);
+
+    System.out.println(slot == null ? "Not found" : slot);
+}
+
+
+Suppose:
+registrationToSlot:
+KA-01-HH-1234 → 1
+KA-01-HH-9999 → 2
+KA-01-BB-0001 → 3
+
+
+Command:
+slot_number_for_registration_number KA-01-HH-9999
+
+
+Output:
+2
+
+
+This expression:
+slot == null ? "Not found" : slot
+
+
+is a ternary operator. It means:
+- If slot is null, print Not found.
+- Otherwise, print the slot number.
+The average lookup time is \(O(1)\), because the data structure is a HashMap.
+
+11. The processCommand() method
+This method converts text commands into calls to the correct parking lot methods.
+private static boolean processCommand(
+        String line, ParkingLot parkingLot) {
+
+    line = line.trim();
+
+    if (line.isEmpty()) {
         return true;
     }
 
-    public static void main(String[] args) {
-        ParkingLot parkingLot = new ParkingLot();
+    String[] parts = line.split("\\s+");
 
-        try (BufferedReader reader =
-                args.length > 0
-                ? new BufferedReader(new FileReader(args[0]))
-                : new BufferedReader(
-                        new InputStreamReader(System.in))) {
 
-            String line;
+Step 1: Clean the input
+trim() removes whitespace from the beginning and end.
 
-            while ((line = reader.readLine()) != null) {
-                if (!processCommand(line, parkingLot)) {
-                    break;
-                }
-            }
+split("\\s+") splits the command wherever one or more whitespace characters occur.
 
-        } catch (IOException e) {
-            System.err.println(
-                    "Unable to read input: " + e.getMessage());
+For example:
+park KA-01-HH-1234 White
+
+
+becomes:
+park
+parts[0]
+KA-01-HH-1234
+parts[1]
+White
+parts[2]
+
+
+So:
+- parts[0] is the command.
+- parts[1] is the registration number.
+- parts[2] is the colour.
+Step 2: Use a switch statement
+switch (parts[0].toLowerCase()) {
+    case "park":
+        if (parts.length == 3) {
+            parkingLot.park(parts[1], parts[2]);
         }
+        break;
+}
+
+
+For a park command, the parser checks that there are exactly three parts before calling the method.
+
+The same principle applies to all commands:
+- create_parking_lot calls createParkingLot().
+- park calls park().
+- leave calls leave().
+- status calls status().
+- The three query commands call their corresponding query methods.
+- exit returns false, signalling the input loop to stop.
+The break exits the current switch case. It does not terminate the program.
+Why does the method return a boolean?
+case "exit":
+    return false;
+
+
+The method returns true when processing should continue and false when the program should stop reading commands.
+
+That return value controls the loop in main().
+
+12. The main() method — supporting two input modes
+public static void main(String[] args) {
+    ParkingLot parkingLot = new ParkingLot();
+
+    try (BufferedReader reader =
+            args.length > 0
+            ? new BufferedReader(new FileReader(args[0]))
+            : new BufferedReader(
+                    new InputStreamReader(System.in))) {
+
+        String line;
+
+        while ((line = reader.readLine()) != null) {
+            if (!processCommand(line, parkingLot)) {
+                break;
+            }
+        }
+
+    } catch (IOException e) {
+        System.err.println(
+                "Unable to read input: " + e.getMessage());
     }
 }
-2. How to run the program
-Option A: Interactive mode
 
-Compile and run:
+
+This is what allows the same code to run in both modes.
+Mode A: Interactive terminal
+Run:
 javac Main.java
 java Main
 
 
-Then enter commands one by one:
-create_parking_lot 6
-park KA-01-HH-1234 White
-park KA-01-HH-9999 White
-status
-exit
+Since no filename is supplied, the program reads from:
+new InputStreamReader(System.in)
 
 
-Option B: File mode
-
-Create a file named input.txt containing your commands, then run:
+You can type commands directly into the terminal.
+Mode B: Read commands from a file
+Run:
 java Main input.txt
 
 
-The same processCommand() method handles both modes, so you don't need separate implementations.
-3. Dry run: how nearest-slot allocation works
-Suppose you execute:
-create_parking_lot 6
-park KA-01-HH-1234 White
-park KA-01-HH-9999 White
-park KA-01-BB-0001 Black
-leave 1
-park KA-01-P-333 White
+Here, args[0] contains input.txt, so the program reads from that file instead.
+How the loop works
+while ((line = reader.readLine()) != null) {
+    if (!processCommand(line, parkingLot)) {
+        break;
+    }
+}
 
 
-Here's how the available slots change:
-Step 1 of 6
-PreviousNext
+The program:
+1. Reads one line.
+2. Processes that command.
+3. Reads the next line.
+4. Continues until the input ends or processCommand() returns false.
+Important: In the current implementation, exit stops processing even in file mode. The requirements specifically describe exit for interactive mode, so you could adjust this behaviour if the expected file-mode specification requires processing the entire file.
+13. Time complexity of each operation
+Let \(n\) be the number of parking slots and \(k\) the number of cars of a particular colour.
+Operation	Time complexity
+Create parking lot	\(O(n\log n)\)
+Park a car	\(O(\log n)\)
+Leave a car	\(O(\log n)\)
+Display status	\(O(n)\)
+Find registration numbers by colour	\(O(n)\)
+Find slots by colour	\(O(\log n+k)\)
+Find slot by registration	\(O(1)\) average
 
-Create parking lot
-Available slots
-1
-Free
-2
-Free
-3
-Free
-4
-Free
-5
-Free
-6
-Free
+The TreeSet and TreeMap operations take logarithmic time, while HashMap lookups take constant time on average.
+14. Important improvements to mention in an interview
+Your implementation is a good starting point, but consider these details:
+1. Consistent state: Every park and leave operation must update all relevant maps and sets. Otherwise, queries can return incorrect results.
+2. Recreating the lot: createParkingLot() clears all existing data. Decide whether resetting an occupied parking lot should be allowed.
+3. Invalid slot numbers: leave() currently reports that any missing slot is free, even if the number is outside the parking lot's capacity. Add range validation.
+4. Case-insensitive colour keys: Use toLowerCase(Locale.ROOT) for predictable case conversion across different system locales.
+5. Command validation: Check argument counts for every command, including status, and reject malformed input consistently.
+6. Testing: Test parking when full, reusing a freed slot, duplicate registration numbers, unknown colours, and unknown registration numbers. 
 
 
-Result: —
-
-The key operation is:
-int slot = availableSlots.pollFirst();
 
 
-pollFirst() retrieves and removes the smallest element from the TreeSet. That is why slot 1 is reused after the first car leaves.
-4. Understand the most important Java concepts
-- TreeSet<Integer> keeps available slot numbers sorted.
-- TreeMap<Integer, Car> keeps parked cars ordered by slot number, which makes status output sorted automatically.
-- HashMap<String, Integer> looks up a car's slot using its registration number.
-- computeIfAbsent() creates a colour entry if it doesn't exist yet.
-- StringJoiner builds comma-separated query results.
+
+
+
+
+
+
+
+
+
+
+
+    
+
+       
+    
+        
+        
+
+       
+
+                
+    
+
+
