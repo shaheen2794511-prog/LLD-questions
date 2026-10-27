@@ -270,41 +270,7 @@ Separation of responsibilities	LogManager	Keeps chain construction separate from
 
 One important interview distinction: This implementation matches the logging classes in your screenshots. It currently writes to the console only. To satisfy the original requirement of logging to multiple destinations, such as console, file, and database, you would add a LogSink abstraction and configure multiple sinks at runtime. The integer levels shown here are also custom: in conventional logging systems, DEBUG is generally less severe than INFO and ERROR.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-These new screenshots add another important part to the Logging Framework LLD: the Observer pattern, which allows log messages to be sent to multiple destinations, such as the console and a file.
+Add another important part to the Logging Framework LLD: the Observer pattern, which allows log messages to be sent to multiple destinations, such as the console and a file.
 
 Your updated design now combines two patterns:
 - Chain of Responsibility: selects the logger that handles a message level.
@@ -438,40 +404,9 @@ getOrDefault() retrieves the existing list or creates a new list if that level h
 notifyAllObserver(1, "Application
 
 
+In particular, InfoLogger and ErrorLogger send formatted messages to LogSubject, which notifies the appropriate observers.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-The additional screenshots complete the main logging flow. In particular, InfoLogger and ErrorLogger send formatted messages to LogSubject, which notifies the appropriate observers.
-
-One detail to notice in your code: ConsoleLogger is registered for levels 1 and 2, while FileLogger is registered for level 1. Therefore, INFO messages go to both destinations, and ERROR messages go to the console.
+ConsoleLogger is registered for levels 1 and 2, while FileLogger is registered for level 1. Therefore, INFO messages go to both destinations, and ERROR messages go to the console.
 2. Complete Java implementation
 The following code combines the classes shown in your screenshots into a runnable implementation. It uses the same package structure conceptually, but places the classes in one Java file for easier practice. Save it as Application.java.
 
@@ -892,20 +827,6 @@ Observer	LogObserver, LogSubject	Sends messages to registered destinations
 Interview takeaway: The most important design decision is separating which logger handles a message from where the message is delivered. The Chain of Responsibility handles the first concern, while the Observer pattern handles the second. LogManager configures both, and the Singleton provides a convenient application-wide entry point.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 package SystemDesign.LoggingFrameworkDemo;
 
 public class LogManager {
@@ -921,18 +842,8 @@ public class LogManager {
 
         return infoLogger;
     }
-}The statement return infoLogger; returns the first node. Starting from this node, the framework can traverse the entire chain. Why infologger returns fitat
-
-
-
-
-
-
-
-
-
-
-
+}
+The statement return infoLogger; returns the first node. Starting from this node, the framework can traverse the entire chain. Why infologger returns fitat
 
 
 We return infoLogger first because it is the starting point (head) of the Chain of Responsibility. From this first logger, we can reach ErrorLogger and DebugLogger through their links.
