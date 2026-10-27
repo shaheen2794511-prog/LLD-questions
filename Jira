@@ -1,0 +1,577 @@
+Jira-like Task Management System — Code Explanation
+Let's understand the code what each class does, why it is needed, and how objects interact when the program runs.
+
+The system has four main responsibilities:
+1. Task management: Create Stories, Features, and Bugs.
+2. Task relationships: Add subtasks to Stories.
+3. Sprint management: Create sprints and add or remove tasks.
+4. Reporting: Find delayed tasks, display sprint details, and list tasks assigned to a user.
+1. Understand the overall flow JiraDemo
+
+Runs the application and calls operations
+
+TaskManager
+
+Coordinates tasks, sprints, and reports
+
+Task hierarchy
+
+Task → Story, Feature, Bug
+
+
+Sprint
+
+Contains selected tasks
+
+
+The TaskManager is the coordinator. It maintains a central collection of tasks and another collection of sprints.
+2. Enums: TaskStatus and TaskType
+Your code defines:
+enum TaskStatus {
+    TODO,
+    IN_PROGRESS,
+    IN_REVIEW,
+    DONE
+}
+
+enum TaskType {
+    STORY,
+    FEATURE,
+    BUG
+}
+
+
+An enum represents a fixed set of possible values.
+
+For example, a task can have the status TODO, IN_PROGRESS, IN_REVIEW, or DONE.
+
+Instead of writing:
+task.changeStatus("INPROGRESS"); // Can contain typos
+
+
+you write:
+task.changeStatus(TaskStatus.IN_PROGRESS);
+
+
+Java can check that the value belongs to the TaskStatus enum.
+
+The TaskType enum identifies whether a task is a Story, Feature, or Bug. In this code, each subclass returns its type using getType().
+3. The User class
+class User {
+    private final String id;
+    private final String name;
+
+    public User(String id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+}
+
+
+A User represents the person responsible for tasks.
+
+For example:
+User alice = new User("U1", "Alice");
+User bob = new User("U2", "Bob");
+
+
+Alice has ID U1, while Bob has ID U2.
+
+The final fields mean their IDs and names cannot be reassigned after construction. Getter methods provide access to these values.
+
+The toString() method returns a readable representation, such as Alice (U1).
+4. The abstract Task class
+This is the most important class because Story, Feature, and Bug share common properties.
+abstract class Task {
+    private final String id;
+    private final String title;
+    private final String description;
+
+    private TaskStatus status;
+    private User assignee;
+    private final LocalDate dueDate;
+}
+
+
+What does each field represent?
+Field	Meaning
+id	Unique task identifier
+title	Short task name
+description	Details about the task
+status	Current progress
+assignee	User responsible for the task
+dueDate	Deadline
+
+The constructor initializes these fields:
+public Task(String id, String title, String description,
+            User assignee, LocalDate dueDate) {
+    this.id = id;
+    this.title = title;
+    this.description = description;
+    this.assignee = assignee;
+    this.dueDate = dueDate;
+    this.status = TaskStatus.TODO;
+}
+
+
+Notice that every new task starts with TODO.
+
+LocalDate represents a date without a time, and LocalDate.now() gets the current date.
+Why is Task abstract?
+public abstract TaskType getType();
+
+
+A generic task does not specify whether it is a Story, Feature, or Bug. The subclasses supply that information.
+
+Because Task is abstract, you cannot instantiate it directly:
+// Not allowed:
+Task task = new Task(...);
+
+
+Instead, you create a concrete task:
+Task task = new Bug(...);
+
+
+This is an example of abstraction, inheritance, and polymorphism.
+5. Changing status and assigning tasks
+changeStatus()
+public void changeStatus(TaskStatus status) {
+    this.status = Objects.requireNonNull(status);
+}
+
+
+Suppose the task's current status is TODO.
+manager.changeStatus("T1", TaskStatus.IN_PROGRESS);
+
+
+The task's status becomes IN_PROGRESS.
+
+Objects.requireNonNull(status) prevents the status from being set to null.
+assignTo()
+public void assignTo(User user) {
+    this.assignee = Objects.requireNonNull(user);
+}
+
+
+This changes the person responsible for a task.
+
+For example, assigning a task to Bob means its assignee field now references the Bob object.
+How does the task detect delays?
+public boolean isDelayed() {
+    return dueDate != null
+            && dueDate.isBefore(LocalDate.now())
+            && status != TaskStatus.DONE;
+}
+
+
+A task is delayed only when all three conditions are true:
+1. A due date exists.
+2. The due date is before today.
+3. The task is not completed.
+For example, if today is October 26 and the due date is October 24, a task in IN_PROGRESS is delayed. If that task is DONE, it is not delayed.
+printDetails()
+This method prints the task's type, ID, title, status, assignee, and due date.
+System.out.println(
+    "[" + getType() + "] " + id
+    + " | " + title
+    + " | Status: " + status
+    + " | Assignee: "
+    + (assignee == null ? "Unassigned" : assignee.getName())
+    + " | Due: " + dueDate
+);
+
+
+The ternary expression:
+assignee == null ? "Unassigned" : assignee.getName()
+
+
+means if there is no assignee, print Unassigned; otherwise, print the user's name.
+6. Story, Feature, and Bug
+All three classes extend Task:
+class Story extends Task { ... }
+class Feature extends Task { ... }
+class Bug extends Task { ... }
+
+
+This means they inherit the common fields and methods instead of duplicating them.
+Why call super()?
+For example, in Feature:
+public Feature(String id, String title, String description,
+               User assignee, LocalDate dueDate) {
+    super(id, title, description, assignee, dueDate);
+}
+
+
+super(...) calls the constructor of the parent class, Task, to initialize the shared fields.
+
+Each subclass implements its own task type:
+@Override
+public TaskType getType() {
+    return TaskType.FEATURE;
+}
+
+
+So, when printDetails() calls getType(), Java uses the implementation belonging to the actual object.
+
+That is runtime polymorphism.
+Why can only a Story contain subtasks?
+Your code defines:
+private final List<Task> subtasks = new ArrayList<>();
+
+
+inside Story, not inside Task.
+
+This means only a Story has a collection for subtasks in this design. A Story can contain a Feature or Bug as a subtask, but the code rejects a nested Story.
+
+The addSubtask() method performs checks:
+if (task == this) {
+    throw new IllegalArgumentException(
+        "A story cannot contain itself");
+}
+
+if (task instanceof Story) {
+    throw new IllegalArgumentException(
+        "Nested stories are not supported");
+}
+
+
+- task == this checks whether the Story is being added as its own subtask.
+- instanceof Story checks whether the subtask is itself a Story.
+The duplicate check prevents the same task ID from being added twice to the same Story.
+
+Finally:
+subtasks.add(task);
+
+
+adds the subtask.
+
+The getter:
+return Collections.unmodifiableList(subtasks);
+
+
+allows other classes to read the subtasks without directly adding or removing elements through the returned list.
+7. The Sprint class
+A sprint represents a time-boxed period during which a team works on selected tasks.
+private final String id;
+private final String name;
+private final LocalDate startDate;
+private final LocalDate endDate;
+
+private final Map<String, Task> tasks = new LinkedHashMap<>();
+
+
+The sprint has an ID, name, start date, end date, and a collection of tasks.
+Why use Map<String, Task>?
+The key is the task ID, and the value is the corresponding task object.
+
+For example:
+Sprint S1 — Sprint 1
+T1
+Story: User Login
+
+T2
+Feature: Dark Mode
+
+The map provides quick lookup by task ID and preserves insertion order.
+
+Validating the sprint dates
+if (endDate.isBefore(startDate)) {
+    throw new IllegalArgumentException(
+        "Sprint end date cannot precede start date");
+}
+
+
+This prevents creating a sprint whose end date is earlier than its start date.
+Adding a task
+public void addTask(Task task) {
+    if (tasks.containsKey(task.getId())) {
+        throw new IllegalArgumentException(
+            "Task already belongs to this sprint");
+    }
+
+    tasks.put(task.getId(), task);
+}
+
+
+The code first checks whether that task ID is already in the sprint. If it isn't, the task is inserted into the map.
+Removing a task
+public void removeTask(String taskId) {
+    if (tasks.remove(taskId) == null) {
+        throw new IllegalArgumentException(
+            "Task not found in this sprint");
+    }
+}
+
+
+Map.remove() removes the entry and returns its previous value. If no entry exists, it returns null, which causes the exception.
+
+Removing a task from a sprint does not delete the task from the main task collection.
+Printing sprint details
+The method prints the sprint's name, dates, and all its tasks. If the sprint has no tasks, it prints No tasks.
+
+Notice that it calls:
+task.printDetails();
+
+
+Because every task type inherits or overrides this method, it prints the appropriate details for each task.
+8. The TaskManager class
+This class coordinates most of the system's operations. It maintains the master collections of tasks and sprints.
+private final Map<String, Task> tasks = new LinkedHashMap<>();
+private final Map<String, Sprint> sprints = new LinkedHashMap<>();
+
+
+Think of these as the system's in-memory storage:
+- tasks stores all registered tasks.
+- sprints stores all created sprints.
+The final keyword means these map references cannot be reassigned. The contents of the maps can still change.
+A. Registering tasks
+private void registerTask(Task task) {
+    if (tasks.containsKey(task.getId())) {
+        throw new IllegalArgumentException(
+            "Duplicate task ID: " + task.getId());
+    }
+
+    tasks.put(task.getId(), task);
+}
+
+
+This is a common helper method used by:
+createStory(story);
+createFeature(feature);
+createBug(bug);
+
+
+All three methods call registerTask(), so the system uses the same logic to check IDs and store tasks.
+
+For example:
+manager.createStory(story);
+
+
+stores the Story in the central tasks map using its ID as the key.
+B. Adding a subtask to a Story
+public void addSubtask(String storyId, String taskId) {
+    Task parent = getTask(storyId);
+    Task child = getTask(taskId);
+
+    if (!(parent instanceof Story)) {
+        throw new IllegalArgumentException(
+            "Parent task must be a Story");
+    }
+
+    // Additional validation...
+
+    ((Story) parent).addSubtask(child);
+}
+
+
+Let's say you call:
+manager.addSubtask("T1", "T4");
+
+
+The process is:
+1. Find the parent task T1.
+2. Find the child task T4.
+3. Check that T1 is a Story.
+4. Check that the child isn't the parent itself.
+5. Check that the child doesn't already belong to another Story.
+6. Cast the parent to Story and add the child.
+The cast:
+((Story) parent).addSubtask(child);
+
+
+is required because parent is declared as Task, but addSubtask() exists only in the Story class.
+C. Finding a task by ID
+public Task getTask(String taskId) {
+    Task task = tasks.get(taskId);
+
+    if (task == null) {
+        throw new IllegalArgumentException(
+            "Task not found: " + taskId);
+    }
+
+    return task;
+}
+
+
+This method retrieves a task from the central map.
+
+If T1 exists, it returns the corresponding task object. If the ID doesn't exist, it throws an exception instead of returning null.
+
+Several other methods reuse getTask(), which avoids repeating lookup and validation logic.
+D. Changing status
+public void changeStatus(String taskId, TaskStatus status) {
+    getTask(taskId).changeStatus(status);
+}
+
+
+This is a good example of delegation.
+
+TaskManager finds the task, then asks the task itself to change its status.
+
+For example:
+manager.changeStatus("T1", TaskStatus.IN_PROGRESS);
+
+
+The manager doesn't directly modify the private status field. The Task class controls that operation.
+E. Assigning a task
+public void assignTask(String taskId, User user) {
+    getTask(taskId).assignTo(user);
+}
+
+
+This follows the same approach: find the task, then delegate assignment to it.
+F. Creating a sprint
+public void createSprint(Sprint sprint) {
+    if (sprints.containsKey(sprint.getId())) {
+        throw new IllegalArgumentException(
+            "Duplicate sprint ID: " + sprint.getId());
+    }
+
+    sprints.put(sprint.getId(), sprint);
+}
+
+
+This validates that the sprint ID is unique and then registers the sprint.
+G. Adding a task to a sprint
+public void addTaskToSprint(String sprintId, String taskId) {
+    Sprint sprint = getSprint(sprintId);
+    Task task = getTask(taskId);
+
+    for (Sprint existing : sprints.values()) {
+        if (existing.containsTask(taskId)) {
+            throw new IllegalArgumentException(
+                "Task already belongs to a sprint");
+        }
+    }
+
+    sprint.addTask(task);
+}
+
+
+This method performs three important operations:
+1. Find the requested sprint.
+2. Find the requested task.
+3. Check every sprint to ensure that the task isn't already assigned to another sprint.
+If validation succeeds, it delegates the actual insertion to Sprint.addTask().
+
+The loop is necessary because this implementation allows each task to belong to at most one sprint.
+H. Removing a task from a sprint
+public void removeTaskFromSprint(
+        String sprintId, String taskId) {
+    getSprint(sprintId).removeTask(taskId);
+}
+
+
+This retrieves the sprint and delegates removal to it.
+
+The task remains in the master tasks map, so you can still change its status, assign it to a user, or include it in reports.
+I. Printing delayed tasks
+public void printDelayedTasks() {
+    for (Task task : tasks.values()) {
+        if (task.isDelayed()) {
+            task.printDetails();
+        }
+    }
+}
+
+
+The manager checks every registered task and calls isDelayed().
+
+It prints only the tasks whose due dates have passed and whose status is not DONE.
+J. Printing tasks assigned to a user
+public void printTasksAssignedTo(User user) {
+    for (Task task : tasks.values()) {
+        if (task.getAssignee() != null
+                && task.getAssignee().getId().equals(user.getId())) {
+            task.printDetails();
+        }
+    }
+}
+
+
+The manager compares user IDs rather than object references.
+
+That matters because two different User objects could represent the same user ID. Comparing IDs allows the system to match them correctly.
+9. Understand the main() method
+The main() method demonstrates how a client uses the system.
+Step 1: Create the manager and users
+TaskManager manager = new TaskManager();
+
+User alice = new User("U1", "Alice");
+User bob = new User("U2", "Bob");
+
+
+The manager is responsible for managing tasks and sprints. Alice and Bob are potential assignees.
+Step 2: Create different task types
+Story story = new Story(
+    "T1", "User Login", "Implement login",
+    alice, LocalDate.now().minusDays(2));
+
+
+This creates a Story assigned to Alice with a due date two days ago.
+
+The other statements create a Feature, a Bug, and another Feature that will be used as a subtask.
+Step 3: Register all tasks
+manager.createStory(story);
+manager.createFeature(feature);
+manager.createBug(bug);
+manager.createFeature(subtask);
+
+
+All four tasks are now available through the manager's master task map.
+
+Important: Creating a task object and registering it are two separate steps in this design.
+Step 4: Add a subtask
+manager.addSubtask("T1", "T4");
+
+
+The task T4 becomes a subtask of Story T1.
+Step 5: Change statuses
+manager.changeStatus("T1", TaskStatus.IN_PROGRESS);
+manager.changeStatus("T3", TaskStatus.DONE);
+
+
+Story T1 is now in progress, while Bug T3 is complete.
+
+Since the Bug is marked DONE, it won't be reported as delayed, even though its due date is in the past.
+Step 6: Create a sprint
+Sprint sprint = new Sprint(
+    "S1", "Sprint 1",
+    LocalDate.now(),
+    LocalDate.now().plusDays(14));
+
+manager.createSprint(sprint);
+
+
+This creates a sprint beginning today and ending 14 days later.
+Step 7: Add and remove tasks
+manager.addTaskToSprint("S1", "T1");
+manager.addTaskToSprint("S1", "T2");
+manager.addTaskToSprint("S1", "T3");
+
+manager.removeTaskFromSprint("S1", "T3");
+
+
+The sprint initially contains T1, T2, and T3. The last statement removes T3 from the sprint, but it doesn't delete it from the system.
+Step 8: Generate reports
+manager.printSprintDetails("S1");
+manager.printDelayedTasks();
+manager.printTasksAssignedTo(alice);
+
+
+These statements print:
+- The sprint's details and remaining tasks.
+- All delayed tasks.
+- All tasks assigned to Alice.
+With the dates in this example, T1 is delayed because its due date is two days ago and it is still IN_PROGRESS. T3 is not delayed because its status is DONE. The subtask T4 is not delayed because its due date is in the future.
+10. Design patterns and OOP concepts
+Concept	Where used	Why
+Abstraction	Task	Defines shared task behavior
+Inheritance	Story, Feature, Bug	Reuses common fields and methods
+Polymorphism	getType(), printDetails()	Allows different task types to behave appropriately
+Encapsulation	Private fields and public methods	Controls access to internal state
+Composition	Story contains subtasks	Models the parent-child relationship
+Enum	TaskStatus, TaskType	Restricts values to defined choices
+In-memory repository-like storage	Maps inside TaskManager	Provides centralized lookup and storage
+
+The maps inside TaskManager act as simple in-memory storage, but they are not a full implementation of the Repository pattern because the persistence responsibility hasn't been separated into dedicated repository interfaces.
